@@ -1,18 +1,7 @@
 import os
 import shutil
 import argparse
-import re
-import xml.etree.ElementTree as ET
 from pathlib import Path
-
-def get_movie_year(nfo_path):
-    try:
-        tree = ET.parse(nfo_path)
-        root = tree.getroot()
-        year = root.findtext('year')
-        return year if year else "Unknown"
-    except Exception:
-        return "Unknown"
 
 def main():
     parser = argparse.ArgumentParser(description="Organize movies into folders based on Jellyfin NFO metadata.")
@@ -30,29 +19,31 @@ def main():
         print(f"Error: {input_dir} is not a valid directory.")
         return
 
-    mkv_files = list(input_dir.glob("*.mkv"))
+    input_files = [*input_dir.glob("*.mkv"), *input_dir.glob("*.mp4")]
     no_nfo_files = []
+    skipped_existing = []
 
     print(f"{'--- DRY RUN ENABLED ---' if args.dryrun else '--- STARTING ORGANIZATION ---'}")
 
-    for mkv_path in mkv_files:
-        base_name = mkv_path.stem  # e.g., "Angel Has Fallen" or "Angel Has Fallen (2019)"
+    for mkv_path in input_files:
+        base_name = mkv_path.stem  # e.g., "Angel Has Fallen (2019)" or "xXx_ Return of Xander Cage (1080p HD)"
         nfo_path = mkv_path.with_suffix(".nfo")
 
-        # If filename already ends with " (YYYY)", use that year and skip reading the .nfo
-        m = re.search(r" \((\d{4})\)$", base_name)
-        if m:
-            year = m.group(1)
-            new_folder_name = base_name
-        else:
-            if not nfo_path.exists():
-                no_nfo_files.append(mkv_path.name)
-                continue
-            # Extract year from NFO
-            year = get_movie_year(nfo_path)
-            new_folder_name = f"{base_name} ({year})"
+        # Require .nfo file to exist - skip if missing
+        if not nfo_path.exists():
+            no_nfo_files.append(mkv_path.name)
+            continue
+
+        # Use the filename exactly as-is for the folder name
+        new_folder_name = base_name
 
         target_folder = output_dir / new_folder_name
+
+        # Check if target folder already exists
+        if target_folder.exists():
+            print(f"Skipping: '{base_name}' - folder already exists")
+            skipped_existing.append(base_name)
+            continue
 
         print(f"Processing: '{base_name}' -> '{new_folder_name}'")
 
@@ -86,13 +77,11 @@ def main():
                     shutil.move(str(file), str(dest_path))
                 continue
 
-            # Default behavior: move other files, prefixing folder name into filename
-            suffix_part = file.name[len(base_name):]
-            new_file_name = f"{base_name} ({year}){suffix_part}"
-            dest_path = target_folder / new_file_name
+            # Default behavior: move files with their ORIGINAL names - don't rename them
+            dest_path = target_folder / file.name
 
             if args.verbose:
-                print(f"  [File] {file.name} -> {new_file_name}")
+                print(f"  [File] {file.name} -> {file.name}")
 
             if not args.dryrun:
                 shutil.move(str(file), str(dest_path))
@@ -101,6 +90,11 @@ def main():
         print("\n--- SKIPPED (No .nfo file found) ---")
         for missed in no_nfo_files:
             print(f"MISSING NFO: {missed}")
+
+    if skipped_existing:
+        print("\n--- SKIPPED (Folder already exists) ---")
+        for skipped in skipped_existing:
+            print(f"ALREADY EXISTS: {skipped}")
 
     print("\nDone.")
 

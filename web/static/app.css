@@ -1,0 +1,161 @@
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background-color: #111318;
+}
+
+.app-body {
+  height: calc(100vh - 52px);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  overflow-y: auto;
+  background-color: #16181d;
+}
+
+.filter-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #6c757d;
+  margin-bottom: .35rem;
+}
+
+/* ── Status panel dots ───────────────────────────────────────────────────── */
+.status-grid { display: flex; flex-direction: column; gap: 5px; }
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.status-link {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.status-link:hover { opacity: .8; }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-success { background-color: #198754; }
+.dot-warning { background-color: #ffc107; }
+
+/* ── Item list ───────────────────────────────────────────────────────────── */
+.item-row {
+  cursor: pointer;
+  transition: background-color 0.08s;
+  user-select: none;
+}
+.item-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+.item-row.selected {
+  background-color: rgba(13, 110, 253, 0.25);
+}
+.item-row.selected:hover {
+  background-color: rgba(13, 110, 253, 0.35);
+}
+
+/* ── NFO indicator icon ──────────────────────────────────────────────────── */
+.nfo-icon {
+  font-size: .85rem;
+  flex-shrink: 0;
+  display: inline-block;      /* required for ::after positioning */
+  position: relative;
+}
+.nfo-present {
+  color: var(--bs-teal, #20c997);
+  opacity: .85;
+}
+.nfo-absent {
+  color: var(--bs-secondary);
+  opacity: .3;
+}
+.nfo-partial {
+  color: var(--bs-orange, #fd7e14);
+  opacity: .9;
+}
+/* diagonal strikethrough line drawn over the icon */
+.nfo-partial::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -1px; right: -1px; bottom: 0;
+  background: linear-gradient(
+    to bottom right,
+    transparent calc(50% - 1px),
+    var(--bs-orange, #fd7e14) calc(50% - 1px),
+    var(--bs-orange, #fd7e14) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+  pointer-events: none;
+}
+
+/* ── Stat cards (Status modal) ───────────────────────────────────────────── */
+.stat-card {
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+  background-color: rgba(255,255,255,0.03);
+}
+.stat-num   { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+.stat-label { font-size: 0.8rem; color: #adb5bd; margin-top: 4px; }
+.stat-sub   { font-size: 0.75rem; color: #6c757d; }
+
+/* ── Spinner on scan badge ───────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin 1.2s linear infinite; }
+
+/* ── Monospace paths ─────────────────────────────────────────────────────── */
+.font-monospace { font-family: "Consolas", "Menlo", monospace !important; }
+
+/* ── Bootstrap overrides ─────────────────────────────────────────────────── */
+.form-check-input:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+/* Keep badge text readable on subtle backgrounds */
+.badge.bg-success-subtle  { color: #75b798 !important; }
+.badge.bg-warning-subtle  { color: #e6aa3b !important; }
+.badge.bg-danger-subtle   { color: #ea868f !important; }
+.badge.bg-info-subtle     { color: #6ea8fe !important; }
+.badge.bg-secondary-subtle{ color: #adb5bd !important; }
+
+/* ── Scrollbar styling for dark theme */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #666; }
+
+/* ── Special filter checkmarks (sidebar) ────────────────────────────────── */
+.special-filter-row {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  user-select: none;
+  transition: background-color 0.1s;
+  color: #6c757d;
+}
+.special-filter-row:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #adb5bd;
+}
+.special-filter-row.sf-active {
+  color: var(--bs-light, #f8f9fa);
+}

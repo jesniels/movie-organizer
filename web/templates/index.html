@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Organizer</title>
+  <link rel="stylesheet" href="/static/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+  <!-- ── Navbar ────────────────────────────────────────────────────────────── -->
+  <nav class="navbar navbar-dark bg-dark border-bottom px-3 py-2 flex-nowrap">
+    <span class="navbar-brand fw-bold me-3">
+      <i class="bi bi-film me-2 text-primary"></i>Movie Organizer
+    </span>
+    <div class="d-flex align-items-center gap-2 ms-auto">
+      <span id="scan-badge" class="badge bg-secondary text-nowrap">Idle</span>
+      <button class="btn btn-sm btn-outline-light" id="btn-rescan" onclick="triggerScan()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Rescan
+      </button>
+      <button class="btn btn-sm btn-outline-info" onclick="showStatusModal()">
+        <i class="bi bi-bar-chart me-1"></i>Status
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#settingsModal">
+        <i class="bi bi-gear"></i>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Main layout ───────────────────────────────────────────────────────── -->
+  <div class="d-flex app-body">
+
+    <!-- Sidebar -->
+    <div class="sidebar d-flex flex-column p-3 border-end border-secondary-subtle">
+
+      <!-- Search -->
+      <div class="mb-3">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-dark border-secondary text-muted">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" id="search-input"
+            class="form-control bg-dark text-light border-secondary"
+            placeholder="Search titles…" oninput="applyFilters()">
+        </div>
+      </div>
+
+      <!-- Location filters -->
+      <div class="mb-3">
+        <div class="filter-label">Location</div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="f-library" checked onchange="applyFilters()">
+          <label class="form-check-label" for="f-library">
+            <span class="badge bg-success-subtle text-success-emphasis me-1">●</span>Library
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="f-download" checked onchange="applyFilters()">
+          <label class="form-check-label" for="f-download">
+            <span class="badge bg-warning-subtle text-warning-emphasis me-1">●</span>Downloads
+          </label>
+        </div>
+      </div>
+
+      <!-- Type filters -->
+      <div class="mb-3">
+        <div class="filter-label">Type</div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="f-movies" checked onchange="applyFilters()">
+          <label class="form-check-label" for="f-movies">
+            <i class="bi bi-film text-muted me-1"></i>Movies
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="f-series" checked onchange="applyFilters()">
+          <label class="form-check-label" for="f-series">
+            <i class="bi bi-tv text-muted me-1"></i>Series
+          </label>
+        </div>
+      </div>
+
+      <hr class="border-secondary my-2">
+
+      <!-- Status summary -->
+      <div class="mb-3">
+        <div class="filter-label">Library</div>
+        <div id="status-panel">
+          <div class="text-muted small fst-italic">Waiting for scan…</div>
+        </div>
+      </div>
+
+      <!-- Selection actions (shown when items are selected) -->
+      <div id="selection-info" class="mt-auto d-none">
+        <hr class="border-secondary my-2">
+        <div class="small text-muted mb-2">
+          <strong id="sel-count" class="text-light">0</strong> item(s) selected
+        </div>
+        <div class="d-flex flex-column gap-1">
+          <button class="btn btn-sm btn-outline-warning" onclick="openMoveDialog()">
+            <i class="bi bi-folder-symlink me-1"></i>Move
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="openDeleteDialog()">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+            <i class="bi bi-x me-1"></i>Clear selection
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="flex-grow-1 d-flex flex-column overflow-hidden">
+
+      <!-- Toolbar -->
+      <div class="bg-dark border-bottom border-secondary-subtle px-3 py-2 d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="toggleSelectAll()">
+          <i class="bi bi-check-all me-1"></i>Select all
+        </button>
+        <span class="text-muted small" id="item-count">—</span>
+      </div>
+
+      <!-- Item list -->
+      <div id="item-list" class="flex-grow-1 overflow-auto">
+        <div class="text-center text-muted mt-5 pt-5" id="list-placeholder">
+          <i class="bi bi-arrow-clockwise fs-1 spin"></i>
+          <p class="mt-3">Scanning library…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════ MODALS ════════════════════════════════════ -->
+
+  <!-- Settings modal -->
+  <div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-gear me-2"></i>Settings</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">
+            Add the full paths to your movie/series library locations and download directories.
+            Windows UNC paths (e.g. <code>\\NAS\Movies</code>) are supported.
+          </p>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">
+              <i class="bi bi-hdd-network me-1 text-success"></i>Library Locations
+            </label>
+            <div id="locations-list"></div>
+            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="addPath('locations')">
+              <i class="bi bi-plus me-1"></i>Add location
+            </button>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">
+              <i class="bi bi-download me-1 text-warning"></i>Download Directories
+            </label>
+            <div id="downloads-list"></div>
+            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="addPath('downloads')">
+              <i class="bi bi-plus me-1"></i>Add directory
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-outline-primary" onclick="saveSettings(false)">
+            <i class="bi bi-save me-1"></i>Save
+          </button>
+          <button type="button" class="btn btn-primary" onclick="saveSettings(true)">
+            <i class="bi bi-arrow-clockwise me-1"></i>Save &amp; Rescan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail modal -->
+  <div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title" id="detail-title">Detail</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="detail-body"></div>
+        <div class="modal-footer border-secondary">
+          <button class="btn btn-sm btn-outline-warning" onclick="renameFromDetail()">
+            <i class="bi bi-pencil me-1"></i>Rename
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete confirmation modal -->
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark border border-danger">
+        <div class="modal-header border-danger">
+          <h5 class="modal-title text-danger">
+            <i class="bi bi-trash me-2"></i>Confirm Delete
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-warning small">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            The following folders and all their contents will be permanently deleted:
+          </p>
+          <div id="delete-list" class="small mb-3 border border-secondary rounded p-2"
+               style="max-height:200px;overflow-y:auto"></div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="delete-dryrun" checked>
+            <label class="form-check-label text-warning" for="delete-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only, no files deleted
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer border-danger">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Move modal -->
+  <div class="modal fade" id="moveModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-folder-symlink me-2"></i>Move Items</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="move-items-preview" class="small mb-3 text-muted"></div>
+          <div class="mb-3">
+            <label class="form-label">Destination (configured path)</label>
+            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="move-target-select"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">— or enter a custom path —</label>
+            <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
+              id="move-target-custom" placeholder="e.g. \\NAS\Movies">
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="move-dryrun" checked>
+            <label class="form-check-label text-warning" for="move-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only, no files moved
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-warning" onclick="confirmMove()">
+            <i class="bi bi-folder-symlink me-1"></i>Move
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename modal -->
+  <div class="modal fade" id="renameModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Rename</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="rename-item-id">
+          <!-- Rename target (hidden for loose files) -->
+          <div class="mb-3" id="rename-target-group">
+            <label class="form-label text-muted small">What to rename</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="rename-target" id="rt-folder" value="folder" checked onchange="updateRenameTarget()">
+                <label class="form-check-label" for="rt-folder"><i class="bi bi-folder me-1"></i>Folder</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="rename-target" id="rt-files" value="files" onchange="updateRenameTarget()">
+                <label class="form-check-label" for="rt-files"><i class="bi bi-file-earmark-play me-1"></i>File(s)</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="rename-target" id="rt-both" value="both" onchange="updateRenameTarget()">
+                <label class="form-check-label" for="rt-both"><i class="bi bi-layers me-1"></i>Both</label>
+              </div>
+            </div>
+          </div>
+          <!-- Single target (folder or files) -->
+          <div id="rename-single-group">
+            <div class="mb-3">
+              <label class="form-label text-muted small" id="rename-current-label">Current name</label>
+              <div id="rename-current" class="bg-secondary rounded p-2 small text-light font-monospace"></div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" id="rename-new-label">New name</label>
+              <input type="text" class="form-control bg-dark text-light border-secondary font-monospace"
+                id="rename-new-name" autocomplete="off">
+              <div class="form-text text-muted" id="rename-hint"></div>
+            </div>
+          </div>
+          <!-- Both: separate inputs for folder and file(s) -->
+          <div id="rename-both-group" class="d-none">
+            <div class="mb-3">
+              <label class="form-label text-muted small"><i class="bi bi-folder me-1"></i>Current folder name</label>
+              <div id="rename-both-current-folder" class="bg-secondary rounded p-2 small text-light font-monospace"></div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label"><i class="bi bi-folder me-1"></i>New folder name</label>
+              <input type="text" class="form-control bg-dark text-light border-secondary font-monospace"
+                id="rename-new-folder" autocomplete="off">
+            </div>
+            <hr class="border-secondary my-3">
+            <div class="mb-3">
+              <label class="form-label text-muted small"><i class="bi bi-file-earmark-play me-1"></i>Current file name (stem)</label>
+              <div id="rename-both-current-file" class="bg-secondary rounded p-2 small text-light font-monospace"></div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label"><i class="bi bi-file-earmark-play me-1"></i>New file name (stem, no extension)</label>
+              <input type="text" class="form-control bg-dark text-light border-secondary font-monospace"
+                id="rename-new-file" autocomplete="off">
+              <div class="form-text text-muted" id="rename-both-hint"></div>
+            </div>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="rename-dryrun" checked>
+            <label class="form-check-label text-warning" for="rename-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only, no files renamed
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-warning" onclick="confirmRename()">
+            <i class="bi bi-pencil me-1"></i>Rename
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status modal -->
+  <div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-bar-chart me-2"></i>Library Status</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="status-modal-body">
+          <div class="text-center text-muted py-4">Loading…</div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dry-run result modal -->
+  <div class="modal fade" id="dryrunModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-info">
+            <i class="bi bi-eye me-2"></i>Dry Run Result
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <pre id="dryrun-content" class="small text-light bg-black rounded p-3"
+               style="max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+    <div id="app-toast" class="toast align-items-center" role="alert">
+      <div class="d-flex">
+        <div class="toast-body" id="toast-body">—</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/bootstrap.bundle.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

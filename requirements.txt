@@ -1,0 +1,7 @@
+pywin32
+fastapi
+uvicorn[standard]
+PyYAML
+pydantic
+jinja2
+python-multipart

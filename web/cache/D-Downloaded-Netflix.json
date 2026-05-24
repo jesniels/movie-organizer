@@ -1,0 +1,885 @@
+{
+  "path": "D:\\Downloaded\\Netflix",
+  "location_type": "download",
+  "last_scan": "2026-05-24T08:53:55.359252",
+  "items": [
+    {
+      "id": "D:\\Downloaded\\Netflix\\Anger Management (2003).mkv",
+      "title": "Anger Management",
+      "raw_name": "Anger Management (2003).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix",
+      "folder": "Netflix",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Anger Management (2003).mkv"
+      ],
+      "year": "2003",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Crouching Tiger, Hidden Dragon (2000).mkv",
+      "title": "Crouching Tiger, Hidden Dragon",
+      "raw_name": "Crouching Tiger, Hidden Dragon (2000).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix",
+      "folder": "Netflix",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Crouching Tiger, Hidden Dragon (2000).mkv"
+      ],
+      "year": "2000",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Immortal Pompeii (2019).mkv",
+      "title": "Immortal Pompeii",
+      "raw_name": "Immortal Pompeii (2019).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix",
+      "folder": "Netflix",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Immortal Pompeii (2019).mkv"
+      ],
+      "year": "2019",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\The Mysterious Mummified Dogs of Ancient Egypt (2019).mkv",
+      "title": "The Mysterious Mummified Dogs of Ancient Egypt",
+      "raw_name": "The Mysterious Mummified Dogs of Ancient Egypt (2019).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix",
+      "folder": "Netflix",
+      "files": [
+        "D:\\Downloaded\\Netflix\\The Mysterious Mummified Dogs of Ancient Egypt (2019).mkv"
+      ],
+      "year": "2019",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Trekking the Great Wall (2012).mkv",
+      "title": "Trekking the Great Wall",
+      "raw_name": "Trekking the Great Wall (2012).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix",
+      "folder": "Netflix",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Trekking the Great Wall (2012).mkv"
+      ],
+      "year": "2012",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\In Her Shoes (2005).mkv",
+      "title": "In Her Shoes",
+      "raw_name": "In Her Shoes (2005).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\In Her Shoes (2005).mkv"
+      ],
+      "year": "2005",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Into the Inferno (2016).mkv",
+      "title": "Into the Inferno",
+      "raw_name": "Into the Inferno (2016).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Into the Inferno (2016).mkv"
+      ],
+      "year": "2016",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\IO (2019).mkv",
+      "title": "IO",
+      "raw_name": "IO (2019).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\IO (2019).mkv"
+      ],
+      "year": "2019",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Kill 'Em All 2 (2024).mkv",
+      "title": "Kill 'Em All 2",
+      "raw_name": "Kill 'Em All 2 (2024).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Kill 'Em All 2 (2024).mkv"
+      ],
+      "year": "2024",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Kong_ Skull Island (2017).mkv",
+      "title": "Kong_ Skull Island",
+      "raw_name": "Kong_ Skull Island (2017).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Kong_ Skull Island (2017).mkv"
+      ],
+      "year": "2017",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Life in Outer Space (2015).mkv",
+      "title": "Life in Outer Space",
+      "raw_name": "Life in Outer Space (2015).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Life in Outer Space (2015).mkv"
+      ],
+      "year": "2015",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Life in Outer Space_ Exoplanets (2022).mkv",
+      "title": "Life in Outer Space_ Exoplanets",
+      "raw_name": "Life in Outer Space_ Exoplanets (2022).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Life in Outer Space_ Exoplanets (2022).mkv"
+      ],
+      "year": "2022",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Lord of the Rings_ The War of the Rohirrim (2024).mkv",
+      "title": "Lord of the Rings_ The War of the Rohirrim",
+      "raw_name": "Lord of the Rings_ The War of the Rohirrim (2024).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Lord of the Rings_ The War of the Rohirrim (2024).mkv"
+      ],
+      "year": "2024",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Miss Congeniality (2000).mkv",
+      "title": "Miss Congeniality",
+      "raw_name": "Miss Congeniality (2000).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Miss Congeniality (2000).mkv"
+      ],
+      "year": "2000",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Miss Congeniality 2_ Armed and Fabulous (2005).mkv",
+      "title": "Miss Congeniality 2_ Armed and Fabulous",
+      "raw_name": "Miss Congeniality 2_ Armed and Fabulous (2005).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Miss Congeniality 2_ Armed and Fabulous (2005).mkv"
+      ],
+      "year": "2005",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Monster Hunter_ Legends of the Guild (2021).mkv",
+      "title": "Monster Hunter_ Legends of the Guild",
+      "raw_name": "Monster Hunter_ Legends of the Guild (2021).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Monster Hunter_ Legends of the Guild (2021).mkv"
+      ],
+      "year": "2021",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Mr_ & Mrs_ Smith (2005).mkv",
+      "title": "Mr_ & Mrs_ Smith",
+      "raw_name": "Mr_ & Mrs_ Smith (2005).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Mr_ & Mrs_ Smith (2005).mkv"
+      ],
+      "year": "2005",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Noah (2014).mkv",
+      "title": "Noah",
+      "raw_name": "Noah (2014).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Noah (2014).mkv"
+      ],
+      "year": "2014",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Poseidon (2006).mkv",
+      "title": "Poseidon",
+      "raw_name": "Poseidon (2006).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Poseidon (2006).mkv"
+      ],
+      "year": "2006",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Pulp Fiction (1994).mkv",
+      "title": "Pulp Fiction",
+      "raw_name": "Pulp Fiction (1994).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Pulp Fiction (1994).mkv"
+      ],
+      "year": "1994",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Rumor Has It (2005).mkv",
+      "title": "Rumor Has It",
+      "raw_name": "Rumor Has It (2005).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Rumor Has It (2005).mkv"
+      ],
+      "year": "2005",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Saving Private Ryan (1998).mkv",
+      "title": "Saving Private Ryan",
+      "raw_name": "Saving Private Ryan (1998).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Saving Private Ryan (1998).mkv"
+      ],
+      "year": "1998",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Something's Gotta Give (2003).mkv",
+      "title": "Something's Gotta Give",
+      "raw_name": "Something's Gotta Give (2003).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Something's Gotta Give (2003).mkv"
+      ],
+      "year": "2003",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Spaceman (2024).mkv",
+      "title": "Spaceman",
+      "raw_name": "Spaceman (2024).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Spaceman (2024).mkv"
+      ],
+      "year": "2024",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Spenser Confidential (2020).mkv",
+      "title": "Spenser Confidential",
+      "raw_name": "Spenser Confidential (2020).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Spenser Confidential (2020).mkv"
+      ],
+      "year": "2020",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Stowaway (2021).mkv",
+      "title": "Stowaway",
+      "raw_name": "Stowaway (2021).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Stowaway (2021).mkv"
+      ],
+      "year": "2021",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Striking Distance (1993).mkv",
+      "title": "Striking Distance",
+      "raw_name": "Striking Distance (1993).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Striking Distance (1993).mkv"
+      ],
+      "year": "1993",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Superman Returns (2006).mkv",
+      "title": "Superman Returns",
+      "raw_name": "Superman Returns (2006).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Superman Returns (2006).mkv"
+      ],
+      "year": "2006",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Tenet (2020).mkv",
+      "title": "Tenet",
+      "raw_name": "Tenet (2020).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Tenet (2020).mkv"
+      ],
+      "year": "2020",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Brave One (2007).mkv",
+      "title": "The Brave One",
+      "raw_name": "The Brave One (2007).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Brave One (2007).mkv"
+      ],
+      "year": "2007",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Bucket List (2007).mkv",
+      "title": "The Bucket List",
+      "raw_name": "The Bucket List (2007).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Bucket List (2007).mkv"
+      ],
+      "year": "2007",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Client (1994).mkv",
+      "title": "The Client",
+      "raw_name": "The Client (1994).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Client (1994).mkv"
+      ],
+      "year": "1994",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Core (2003).mkv",
+      "title": "The Core",
+      "raw_name": "The Core (2003).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Core (2003).mkv"
+      ],
+      "year": "2003",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Dark Knight (2008).mkv",
+      "title": "The Dark Knight",
+      "raw_name": "The Dark Knight (2008).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Dark Knight (2008).mkv"
+      ],
+      "year": "2008",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Dark Knight Rises (2012).mkv",
+      "title": "The Dark Knight Rises",
+      "raw_name": "The Dark Knight Rises (2012).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Dark Knight Rises (2012).mkv"
+      ],
+      "year": "2012",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Electric State (2025).mkv",
+      "title": "The Electric State",
+      "raw_name": "The Electric State (2025).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Electric State (2025).mkv"
+      ],
+      "year": "2025",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Expatriate (2012).mkv",
+      "title": "The Expatriate",
+      "raw_name": "The Expatriate (2012).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Expatriate (2012).mkv"
+      ],
+      "year": "2012",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The General's Daughter (1999).mkv",
+      "title": "The General's Daughter",
+      "raw_name": "The General's Daughter (1999).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The General's Daughter (1999).mkv"
+      ],
+      "year": "1999",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Heartbreak Kid (2007).mkv",
+      "title": "The Heartbreak Kid",
+      "raw_name": "The Heartbreak Kid (2007).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Heartbreak Kid (2007).mkv"
+      ],
+      "year": "2007",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Interpreter (2005).mkv",
+      "title": "The Interpreter",
+      "raw_name": "The Interpreter (2005).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Interpreter (2005).mkv"
+      ],
+      "year": "2005",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Karate Kid (2010).mkv",
+      "title": "The Karate Kid",
+      "raw_name": "The Karate Kid (2010).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Karate Kid (2010).mkv"
+      ],
+      "year": "2010",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Last Samurai (2003).mkv",
+      "title": "The Last Samurai",
+      "raw_name": "The Last Samurai (2003).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Last Samurai (2003).mkv"
+      ],
+      "year": "2003",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Mask (1994).mkv",
+      "title": "The Mask",
+      "raw_name": "The Mask (1994).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Mask (1994).mkv"
+      ],
+      "year": "1994",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Meg (2018).mkv",
+      "title": "The Meg",
+      "raw_name": "The Meg (2018).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Meg (2018).mkv"
+      ],
+      "year": "2018",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Negotiator (1998).mkv",
+      "title": "The Negotiator",
+      "raw_name": "The Negotiator (1998).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Negotiator (1998).mkv"
+      ],
+      "year": "1998",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Pelican Brief (1993).mkv",
+      "title": "The Pelican Brief",
+      "raw_name": "The Pelican Brief (1993).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Pelican Brief (1993).mkv"
+      ],
+      "year": "1993",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Quick and the Dead (1995).mkv",
+      "title": "The Quick and the Dead",
+      "raw_name": "The Quick and the Dead (1995).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Quick and the Dead (1995).mkv"
+      ],
+      "year": "1995",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Sweetest Thing (2002).mkv",
+      "title": "The Sweetest Thing",
+      "raw_name": "The Sweetest Thing (2002).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\The Sweetest Thing (2002).mkv"
+      ],
+      "year": "2002",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Under Paris (2024).mkv",
+      "title": "Under Paris",
+      "raw_name": "Under Paris (2024).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Under Paris (2024).mkv"
+      ],
+      "year": "2024",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Vertical Limit (2000).mkv",
+      "title": "Vertical Limit",
+      "raw_name": "Vertical Limit (2000).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Vertical Limit (2000).mkv"
+      ],
+      "year": "2000",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Warcraft (2016).mkv",
+      "title": "Warcraft",
+      "raw_name": "Warcraft (2016).mkv",
+      "type": "movie",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Netflix-transcoded",
+      "folder": "Netflix-transcoded",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Netflix-transcoded\\Warcraft (2016).mkv"
+      ],
+      "year": "2016",
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\Snowpiercer",
+      "title": "Snowpiercer",
+      "raw_name": "Snowpiercer",
+      "type": "series",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\Snowpiercer",
+      "folder": "Snowpiercer",
+      "files": [
+        "D:\\Downloaded\\Netflix\\Snowpiercer\\S01\\Snowpiercer_S01E01_First, the Weather Changed.mkv",
+        "D:\\Downloaded\\Netflix\\Snowpiercer\\S01\\Snowpiercer_S01E02_Prepare to Brace.mkv",
+        "D:\\Downloaded\\Netflix\\Snowpiercer\\S01\\Snowpiercer_S01E03_Access Is Power.mkv",
+        "D:\\Downloaded\\Netflix\\Snowpiercer\\S01\\Snowpiercer_S01E04_Without Their Maker.mkv"
+      ],
+      "episodes": {
+        "1": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "missing_episodes": {},
+      "total_episodes": 4,
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\The Lost Pirate Kingdom",
+      "title": "The Lost Pirate Kingdom",
+      "raw_name": "The Lost Pirate Kingdom",
+      "type": "series",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\The Lost Pirate Kingdom",
+      "folder": "The Lost Pirate Kingdom",
+      "files": [
+        "D:\\Downloaded\\Netflix\\The Lost Pirate Kingdom\\S01\\The Lost Pirate Kingdom_S01E04_The Empire Strikes Back.mkv",
+        "D:\\Downloaded\\Netflix\\The Lost Pirate Kingdom\\S01\\The Lost Pirate Kingdom_S01E05_Deal or No Deal.mkv",
+        "D:\\Downloaded\\Netflix\\The Lost Pirate Kingdom\\S01\\The Lost Pirate Kingdom_S01E06_Dead or Alive.mkv"
+      ],
+      "episodes": {
+        "1": [
+          4,
+          5,
+          6
+        ]
+      },
+      "missing_episodes": {},
+      "total_episodes": 3,
+      "nfo": {},
+      "nfo_quality": "none"
+    },
+    {
+      "id": "D:\\Downloaded\\Netflix\\The New Legends of Monkey",
+      "title": "The New Legends of Monkey",
+      "raw_name": "The New Legends of Monkey",
+      "type": "series",
+      "location": "download",
+      "path": "D:\\Downloaded\\Netflix\\The New Legends of Monkey",
+      "folder": "The New Legends of Monkey",
+      "files": [
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E01_Hope Must Never Die.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E02_The Edge of Nowhere.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E03_The Journey Begins.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E04_The Monkey King Returns.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E05_The Breaking Ground.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E06_A Crown Does Not Make You King.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E07_Until I Met You.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E08_A Part of You That's Missing.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E09_In Search of Tripitaka.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S01\\The New Legends of Monkey_S01E10_A Hero to Save Us All.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E01_Graveyard of the Gods.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E02_Quest for Knowledge.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E03_Village of Lost Children.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E04_Puppet Master.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E05_Finding Paradise.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E06_Gladiators.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E07_Masterchef.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E08_The Real Tripitaka.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E09_The Spider Web.mkv",
+        "D:\\Downloaded\\Netflix\\The New Legends of Monkey\\S02\\The New Legends of Monkey_S02E10_Shadow Boxing.mkv"
+      ],
+      "episodes": {
+        "1": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "2": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      },
+      "missing_episodes": {},
+      "total_episodes": 20,
+      "nfo": {},
+      "nfo_quality": "none"
+    }
+  ]
+}
