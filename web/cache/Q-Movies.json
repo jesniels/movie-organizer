@@ -1,18 +1,17 @@
 {
   "path": "Q:\\Movies",
   "location_type": "library",
-  "last_scan": "2026-08-31T21:25:58.694524",
+  "last_scan": "2026-08-31T22:05:44.092407",
   "items": [
     {
-      "id": "Q:\\Movies\\Netflix\\6 Underground (2019)",
       "title": "6 Underground",
       "raw_name": "6 Underground (2019)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\6 Underground (2019)",
+      "path": "Netflix\\6 Underground (2019)",
       "folder": "6 Underground (2019)",
       "files": [
-        "Q:\\Movies\\Netflix\\6 Underground (2019)\\6 Underground (2019).mkv"
+        "6 Underground (2019).mkv"
       ],
       "year": "2019",
       "nfo": {
@@ -27,7 +26,10 @@
         ],
         "studio": "Skydance Media",
         "tagline": "They say no one can save the world. Meet no one.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt8106534",
+          "tmdb": "509967"
+        },
         "actors": [
           "Ryan Reynolds",
           "Mélanie Laurent",
@@ -61,18 +63,17 @@
           "Marco Valerio Pugini"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\American Sniper",
       "title": "American Sniper",
       "raw_name": "American Sniper",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\American Sniper",
+      "path": "Netflix\\American Sniper",
       "folder": "American Sniper",
       "files": [
-        "Q:\\Movies\\Netflix\\American Sniper\\American Sniper.mkv"
+        "American Sniper.mkv"
       ],
       "year": "2014",
       "nfo": {
@@ -86,21 +87,23 @@
         ],
         "studio": "",
         "tagline": "The most lethal sniper in U.S. history.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt2179136",
+          "tmdb": "190859"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Angel Has Fallen (2019)",
       "title": "Angel Has Fallen",
       "raw_name": "Angel Has Fallen (2019)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Angel Has Fallen (2019)",
+      "path": "Netflix\\Angel Has Fallen (2019)",
       "folder": "Angel Has Fallen (2019)",
       "files": [
-        "Q:\\Movies\\Netflix\\Angel Has Fallen (2019)\\Angel Has Fallen (2019).mkv"
+        "Angel Has Fallen (2019).mkv"
       ],
       "year": "2019",
       "nfo": {
@@ -114,7 +117,10 @@
         ],
         "studio": "Campbell Grobman Films",
         "tagline": "Loyalty is under fire",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt6189022",
+          "tmdb": "423204"
+        },
         "actors": [
           "Gerard Butler",
           "Morgan Freeman",
@@ -162,18 +168,17 @@
           "Conor Charles"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Another Round (2018)",
       "title": "Another Round",
       "raw_name": "Another Round (2018)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Another Round (2018)",
+      "path": "Netflix\\Another Round (2018)",
       "folder": "Another Round (2018)",
       "files": [
-        "Q:\\Movies\\Netflix\\Another Round (2018)\\Another Round (2018).mkv"
+        "Another Round (2018).mkv"
       ],
       "year": "2018",
       "nfo": {
@@ -186,7 +191,10 @@
         ],
         "studio": "The Collaborative",
         "tagline": "",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt7688998",
+          "tmdb": "1156965"
+        },
         "actors": [
           "Alexa Alemanni",
           "Stacy Barnhisel",
@@ -205,18 +213,17 @@
           "Alexa Alemanni"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja",
       "title": "Checkered Ninja 2",
       "raw_name": "Checkered Ninja",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja",
+      "path": "Netflix\\Checkered Ninja\\Checkered Ninja",
       "folder": "Checkered Ninja",
       "files": [
-        "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja\\Checkered Ninja.mkv"
+        "Checkered Ninja.mkv"
       ],
       "year": "2021",
       "nfo": {
@@ -232,21 +239,23 @@
         ],
         "studio": "",
         "tagline": "",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt13387604",
+          "tmdb": "778819"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja 2 (2021)",
       "title": "Checkered Ninja 2",
       "raw_name": "Checkered Ninja 2 (2021)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja 2 (2021)",
+      "path": "Netflix\\Checkered Ninja\\Checkered Ninja 2 (2021)",
       "folder": "Checkered Ninja 2 (2021)",
       "files": [
-        "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja 2 (2021)\\Checkered Ninja 2 (2021).mkv"
+        "Checkered Ninja 2 (2021).mkv"
       ],
       "year": "2021",
       "nfo": {
@@ -262,7 +271,10 @@
         ],
         "studio": "A. Film Production",
         "tagline": "",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt13387604",
+          "tmdb": "778819"
+        },
         "actors": [
           "Anders Matthesen",
           "Louis Næss-Schmidt",
@@ -278,18 +290,17 @@
           "Trine Heidegaard"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja 3 (2026)",
       "title": "Checkered Ninja 3",
       "raw_name": "Checkered Ninja 3 (2026)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja 3 (2026)",
+      "path": "Netflix\\Checkered Ninja\\Checkered Ninja 3 (2026)",
       "folder": "Checkered Ninja 3 (2026)",
       "files": [
-        "Q:\\Movies\\Netflix\\Checkered Ninja\\Checkered Ninja 3 (2026)\\Checkered Ninja (2026).mkv"
+        "Checkered Ninja (2026).mkv"
       ],
       "year": "2026",
       "nfo": {
@@ -304,21 +315,23 @@
         ],
         "studio": "",
         "tagline": "You can ignore your problems, but you can't escape them",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt32635378",
+          "tmdb": "1215638"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Coach Carter",
       "title": "Coach Carter",
       "raw_name": "Coach Carter",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Coach Carter",
+      "path": "Netflix\\Coach Carter",
       "folder": "Coach Carter",
       "files": [
-        "Q:\\Movies\\Netflix\\Coach Carter\\Coach Carter.mkv"
+        "Coach Carter.mkv"
       ],
       "year": "2005",
       "nfo": {
@@ -332,21 +345,23 @@
         ],
         "studio": "",
         "tagline": "It begins on the streets. It ends here.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0393162",
+          "tmdb": "7214"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\EuroTrip",
       "title": "EuroTrip",
       "raw_name": "EuroTrip",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\EuroTrip",
+      "path": "Netflix\\EuroTrip",
       "folder": "EuroTrip",
       "files": [
-        "Q:\\Movies\\Netflix\\EuroTrip\\EuroTrip.mkv"
+        "EuroTrip.mkv"
       ],
       "year": "2004",
       "nfo": {
@@ -359,21 +374,23 @@
         ],
         "studio": "",
         "tagline": "No actual Europeans were harmed in the making of this film.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0356150",
+          "tmdb": "9352"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\EuroTrip (2004)",
       "title": "EuroTrip",
       "raw_name": "EuroTrip (2004)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\EuroTrip (2004)",
+      "path": "Netflix\\EuroTrip (2004)",
       "folder": "EuroTrip (2004)",
       "files": [
-        "Q:\\Movies\\Netflix\\EuroTrip (2004)\\EuroTrip (2004).mkv"
+        "EuroTrip (2004).mkv"
       ],
       "year": "2004",
       "nfo": {
@@ -386,7 +403,10 @@
         ],
         "studio": "The Montecito Picture Company",
         "tagline": "No actual Europeans were harmed in the making of this film.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0356150",
+          "tmdb": "9352"
+        },
         "actors": [
           "Scott Mechlowicz",
           "Jacob Pitts",
@@ -415,18 +435,17 @@
           "Tom Karnowski"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Exterritorial",
       "title": "Exterritorial",
       "raw_name": "Exterritorial",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Exterritorial",
+      "path": "Netflix\\Exterritorial",
       "folder": "Exterritorial",
       "files": [
-        "Q:\\Movies\\Netflix\\Exterritorial\\Exterritorial.mkv"
+        "Exterritorial.mkv"
       ],
       "year": "2025",
       "nfo": {
@@ -440,21 +459,23 @@
         ],
         "studio": "",
         "tagline": "",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt30876483",
+          "tmdb": "1233069"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Extraction",
       "title": "Extraction",
       "raw_name": "Extraction",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Extraction",
+      "path": "Netflix\\Extraction",
       "folder": "Extraction",
       "files": [
-        "Q:\\Movies\\Netflix\\Extraction\\Extraction.mkv"
+        "Extraction.mkv"
       ],
       "year": "2013",
       "nfo": {
@@ -467,21 +488,23 @@
         ],
         "studio": "",
         "tagline": "One Is The Deadliest Number",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt2823574",
+          "tmdb": "218381"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Extraction 2",
       "title": "Extraction 2",
       "raw_name": "Extraction 2",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Extraction 2",
+      "path": "Netflix\\Extraction 2",
       "folder": "Extraction 2",
       "files": [
-        "Q:\\Movies\\Netflix\\Extraction 2\\Extraction 2.mkv"
+        "Extraction 2.mkv"
       ],
       "year": "2023",
       "nfo": {
@@ -496,21 +519,23 @@
         ],
         "studio": "",
         "tagline": "Prepare for the ride of your life.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt12263384",
+          "tmdb": "697843"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Hit Man (2024)",
       "title": "Hit Man",
       "raw_name": "Hit Man (2024)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Hit Man (2024)",
+      "path": "Netflix\\Hit Man (2024)",
       "folder": "Hit Man (2024)",
       "files": [
-        "Q:\\Movies\\Netflix\\Hit Man (2024)\\Hit Man (2024).mkv"
+        "Hit Man (2024).mkv"
       ],
       "year": "2024",
       "nfo": {
@@ -525,7 +550,10 @@
         ],
         "studio": "Aggregate Films",
         "tagline": "He's not a killer, but he can pretend.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt20215968",
+          "tmdb": "974635"
+        },
         "actors": [
           "Glen Powell",
           "Adria Arjona",
@@ -562,18 +590,17 @@
           "Steve Barnett"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Hunter Killer (2018)",
       "title": "Hunter Killer",
       "raw_name": "Hunter Killer (2018)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Hunter Killer (2018)",
+      "path": "Netflix\\Hunter Killer (2018)",
       "folder": "Hunter Killer (2018)",
       "files": [
-        "Q:\\Movies\\Netflix\\Hunter Killer (2018)\\Hunter Killer (2018).mkv"
+        "Hunter Killer (2018).mkv"
       ],
       "year": "2018",
       "nfo": {
@@ -588,7 +615,10 @@
         ],
         "studio": "Original Film",
         "tagline": "Courage runs deep",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt1846589",
+          "tmdb": "399402"
+        },
         "actors": [
           "Gerard Butler",
           "Gary Oldman",
@@ -630,18 +660,17 @@
           "Douglas Urbanski"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Jack Reacher (2012)",
       "title": "Jack Reacher",
       "raw_name": "Jack Reacher (2012)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Jack Reacher (2012)",
+      "path": "Netflix\\Jack Reacher (2012)",
       "folder": "Jack Reacher (2012)",
       "files": [
-        "Q:\\Movies\\Netflix\\Jack Reacher (2012)\\Jack Reacher (2012).mkv"
+        "Jack Reacher (2012).mkv"
       ],
       "year": "2012",
       "nfo": {
@@ -657,21 +686,23 @@
         ],
         "studio": "",
         "tagline": "The law has limits. He does not.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0790724",
+          "tmdb": "75780"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Jack Reacher - Never go back",
       "title": "Jack Reacher: Never Go Back",
       "raw_name": "Jack Reacher - Never go back",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Jack Reacher - Never go back",
+      "path": "Netflix\\Jack Reacher - Never go back",
       "folder": "Jack Reacher - Never go back",
       "files": [
-        "Q:\\Movies\\Netflix\\Jack Reacher - Never go back\\Jack Reacher - Never Go Back.mkv"
+        "Jack Reacher - Never Go Back.mkv"
       ],
       "year": "2016",
       "nfo": {
@@ -687,21 +718,23 @@
         ],
         "studio": "",
         "tagline": "Never give in. Never give up. Never go back.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt3393786",
+          "tmdb": "343611"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Killer Elite",
       "title": "Killer Elite",
       "raw_name": "Killer Elite",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Killer Elite",
+      "path": "Netflix\\Killer Elite",
       "folder": "Killer Elite",
       "files": [
-        "Q:\\Movies\\Netflix\\Killer Elite\\Killer Elite.mkv"
+        "Killer Elite.mkv"
       ],
       "year": "2011",
       "nfo": {
@@ -716,21 +749,23 @@
         ],
         "studio": "",
         "tagline": "May the best man live.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt1448755",
+          "tmdb": "49021"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Killer Elite (2011)",
       "title": "Killer Elite",
       "raw_name": "Killer Elite (2011)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Killer Elite (2011)",
+      "path": "Netflix\\Killer Elite (2011)",
       "folder": "Killer Elite (2011)",
       "files": [
-        "Q:\\Movies\\Netflix\\Killer Elite (2011)\\Killer Elite (2011).mkv"
+        "Killer Elite (2011).mkv"
       ],
       "year": "2011",
       "nfo": {
@@ -745,7 +780,10 @@
         ],
         "studio": "Open Road Films",
         "tagline": "May the best man live.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt1448755",
+          "tmdb": "49021"
+        },
         "actors": [
           "Jason Statham",
           "Clive Owen",
@@ -774,18 +812,17 @@
           "Alexander O'Neal"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\London Has Fallen (2016)",
       "title": "London Has Fallen",
       "raw_name": "London Has Fallen (2016)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\London Has Fallen (2016)",
+      "path": "Netflix\\London Has Fallen (2016)",
       "folder": "London Has Fallen (2016)",
       "files": [
-        "Q:\\Movies\\Netflix\\London Has Fallen (2016)\\London Has Fallen (2016).mkv"
+        "London Has Fallen (2016).mkv"
       ],
       "year": "2016",
       "nfo": {
@@ -799,7 +836,10 @@
         ],
         "studio": "Millennium Media",
         "tagline": "The world's leaders have assembled. So have their enemies.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt3300542",
+          "tmdb": "267860"
+        },
         "actors": [
           "Gerard Butler",
           "Aaron Eckhart",
@@ -827,18 +867,17 @@
           "Boaz Davidson"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Mechanic_ Resurrection (2016)",
       "title": "Mechanic: Resurrection",
       "raw_name": "Mechanic_ Resurrection (2016)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Mechanic_ Resurrection (2016)",
+      "path": "Netflix\\Mechanic_ Resurrection (2016)",
       "folder": "Mechanic_ Resurrection (2016)",
       "files": [
-        "Q:\\Movies\\Netflix\\Mechanic_ Resurrection (2016)\\Mechanic_ Resurrection (2016).mkv"
+        "Mechanic_ Resurrection (2016).mkv"
       ],
       "year": "2016",
       "nfo": {
@@ -853,7 +892,10 @@
         ],
         "studio": "Davis Films",
         "tagline": "Four continents. Three kills... Or the love of his life is dead.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt3522806",
+          "tmdb": "278924"
+        },
         "actors": [
           "Jason Statham",
           "Jessica Alba",
@@ -887,18 +929,17 @@
           "Tom Sulkowski"
         ]
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Olympus Has Fallen (2013)",
       "title": "Olympus Has Fallen",
       "raw_name": "Olympus Has Fallen (2013)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Olympus Has Fallen (2013)",
+      "path": "Netflix\\Olympus Has Fallen (2013)",
       "folder": "Olympus Has Fallen (2013)",
       "files": [
-        "Q:\\Movies\\Netflix\\Olympus Has Fallen (2013)\\Olympus Has Fallen (2013).mkv"
+        "Olympus Has Fallen (2013).mkv"
       ],
       "year": "2013",
       "nfo": {
@@ -912,21 +953,23 @@
         ],
         "studio": "",
         "tagline": "When our flag falls our nation will rise.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt2302755",
+          "tmdb": "117263"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Red Notice",
       "title": "Red Notice",
       "raw_name": "Red Notice",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Red Notice",
+      "path": "Netflix\\Red Notice",
       "folder": "Red Notice",
       "files": [
-        "Q:\\Movies\\Netflix\\Red Notice\\Red Notice.mkv"
+        "Red Notice.mkv"
       ],
       "year": "2021",
       "nfo": {
@@ -941,21 +984,23 @@
         ],
         "studio": "",
         "tagline": "Pro and cons.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt7991608",
+          "tmdb": "512195"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Shaft",
       "title": "Shaft",
       "raw_name": "Shaft",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Shaft",
+      "path": "Netflix\\Shaft",
       "folder": "Shaft",
       "files": [
-        "Q:\\Movies\\Netflix\\Shaft\\Shaft.mkv"
+        "Shaft.mkv"
       ],
       "year": "2000",
       "nfo": {
@@ -971,21 +1016,23 @@
         ],
         "studio": "",
         "tagline": "Still the man, any questions?",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0162650",
+          "tmdb": "479"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Shaft (2000)",
       "title": "Shaft",
       "raw_name": "Shaft (2000)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Shaft (2000)",
+      "path": "Netflix\\Shaft (2000)",
       "folder": "Shaft (2000)",
       "files": [
-        "Q:\\Movies\\Netflix\\Shaft (2000)\\Shaft (2000).mkv"
+        "Shaft (2000).mkv"
       ],
       "year": "2000",
       "nfo": {
@@ -1001,21 +1048,23 @@
         ],
         "studio": "",
         "tagline": "Still the man, any questions?",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0162650",
+          "tmdb": "479"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\She's All That (1999)",
       "title": "She's All That",
       "raw_name": "She's All That (1999)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\She's All That (1999)",
+      "path": "Netflix\\She's All That (1999)",
       "folder": "She's All That (1999)",
       "files": [
-        "Q:\\Movies\\Netflix\\She's All That (1999)\\She's All That (1999).mkv"
+        "She's All That (1999).mkv"
       ],
       "year": "1999",
       "nfo": {
@@ -1029,21 +1078,23 @@
         ],
         "studio": "",
         "tagline": "These two opposites attract... but EVERYONE'S trying to keep them apart!",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0160862",
+          "tmdb": "10314"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Spaceballs (1987)",
       "title": "Spaceballs",
       "raw_name": "Spaceballs (1987)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Spaceballs (1987)",
+      "path": "Netflix\\Spaceballs (1987)",
       "folder": "Spaceballs (1987)",
       "files": [
-        "Q:\\Movies\\Netflix\\Spaceballs (1987)\\Spaceballs (1987).mkv"
+        "Spaceballs (1987).mkv"
       ],
       "year": "1987",
       "nfo": {
@@ -1057,21 +1108,23 @@
         ],
         "studio": "",
         "tagline": "May the schwartz be with you.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0094012",
+          "tmdb": "957"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\Spenser Confidential (2020)",
       "title": "Spenser Confidential",
       "raw_name": "Spenser Confidential (2020)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\Spenser Confidential (2020)",
+      "path": "Netflix\\Spenser Confidential (2020)",
       "folder": "Spenser Confidential (2020)",
       "files": [
-        "Q:\\Movies\\Netflix\\Spenser Confidential (2020)\\Spenser Confidential (2020).mkv"
+        "Spenser Confidential (2020).mkv"
       ],
       "year": "2020",
       "nfo": {
@@ -1086,21 +1139,23 @@
         ],
         "studio": "",
         "tagline": "The law has limits. They don't.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt8629748",
+          "tmdb": "581600"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\The Expatriate (2019)",
       "title": "Expatriate",
       "raw_name": "The Expatriate (2019)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\The Expatriate (2019)",
+      "path": "Netflix\\The Expatriate (2019)",
       "folder": "The Expatriate (2019)",
       "files": [
-        "Q:\\Movies\\Netflix\\The Expatriate (2019)\\The Expatriate (2019).mkv"
+        "The Expatriate (2019).mkv"
       ],
       "year": "2019",
       "nfo": {
@@ -1113,21 +1168,23 @@
         ],
         "studio": "",
         "tagline": "",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt9383836",
+          "tmdb": "541037"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\The Gray Man (2022)",
       "title": "The Gray Man",
       "raw_name": "The Gray Man (2022)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\The Gray Man (2022)",
+      "path": "Netflix\\The Gray Man (2022)",
       "folder": "The Gray Man (2022)",
       "files": [
-        "Q:\\Movies\\Netflix\\The Gray Man (2022)\\The Gray Man (2022).mkv"
+        "The Gray Man (2022).mkv"
       ],
       "year": "2022",
       "nfo": {
@@ -1141,21 +1198,23 @@
         ],
         "studio": "",
         "tagline": "",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt1649418",
+          "tmdb": "725201"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\The Magnificent Seven",
       "title": "The Magnificent Seven",
       "raw_name": "The Magnificent Seven",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\The Magnificent Seven",
+      "path": "Netflix\\The Magnificent Seven",
       "folder": "The Magnificent Seven",
       "files": [
-        "Q:\\Movies\\Netflix\\The Magnificent Seven\\The Magnificent Seven.mkv"
+        "The Magnificent Seven.mkv"
       ],
       "year": "1960",
       "nfo": {
@@ -1170,21 +1229,23 @@
         ],
         "studio": "",
         "tagline": "They were seven…and they fought like seven hundred!",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0054047",
+          "tmdb": "966"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\The Mask (1994)",
       "title": "The Mask",
       "raw_name": "The Mask (1994)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\The Mask (1994)",
+      "path": "Netflix\\The Mask (1994)",
       "folder": "The Mask (1994)",
       "files": [
-        "Q:\\Movies\\Netflix\\The Mask (1994)\\The Mask (1994).mkv"
+        "The Mask (1994).mkv"
       ],
       "year": "1994",
       "nfo": {
@@ -1200,21 +1261,23 @@
         ],
         "studio": "",
         "tagline": "From zero to hero.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0110475",
+          "tmdb": "854"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\The Old Guard (2020)",
       "title": "The Old Guard",
       "raw_name": "The Old Guard (2020)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\The Old Guard (2020)",
+      "path": "Netflix\\The Old Guard (2020)",
       "folder": "The Old Guard (2020)",
       "files": [
-        "Q:\\Movies\\Netflix\\The Old Guard (2020)\\The Old Guard (2020).mkv"
+        "The Old Guard (2020).mkv"
       ],
       "year": "2020",
       "nfo": {
@@ -1228,21 +1291,23 @@
         ],
         "studio": "",
         "tagline": "Forever is harder than it looks.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt7556122",
+          "tmdb": "547016"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\The Old Guard 2 (2025)",
       "title": "The Old Guard 2",
       "raw_name": "The Old Guard 2 (2025)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\The Old Guard 2 (2025)",
+      "path": "Netflix\\The Old Guard 2 (2025)",
       "folder": "The Old Guard 2 (2025)",
       "files": [
-        "Q:\\Movies\\Netflix\\The Old Guard 2 (2025)\\The Old Guard 2 (2025).mkv"
+        "The Old Guard 2 (2025).mkv"
       ],
       "year": "2025",
       "nfo": {
@@ -1256,21 +1321,23 @@
         ],
         "studio": "",
         "tagline": "Eternity has a price.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt14961624",
+          "tmdb": "846422"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Netflix\\The Terminator (1984)",
       "title": "The Terminator",
       "raw_name": "The Terminator (1984)",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Netflix\\The Terminator (1984)",
+      "path": "Netflix\\The Terminator (1984)",
       "folder": "The Terminator (1984)",
       "files": [
-        "Q:\\Movies\\Netflix\\The Terminator (1984)\\The Terminator (1984).mkv"
+        "The Terminator (1984).mkv"
       ],
       "year": "1984",
       "nfo": {
@@ -1285,21 +1352,23 @@
         ],
         "studio": "",
         "tagline": "Your future is in its hands.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt0088247",
+          "tmdb": "218"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     },
     {
-      "id": "Q:\\Movies\\Other\\Predator Badlands (2025) [2160p] [4K] [WEB] [5.1] [YTS.LT]",
       "title": "Predator: Badlands",
       "raw_name": "Predator Badlands (2025) [2160p] [4K] [WEB] [5.1] [YTS.LT]",
       "type": "movie",
       "location": "library",
-      "path": "Q:\\Movies\\Other\\Predator Badlands (2025) [2160p] [4K] [WEB] [5.1] [YTS.LT]",
+      "path": "Other\\Predator Badlands (2025) [2160p] [4K] [WEB] [5.1] [YTS.LT]",
       "folder": "Predator Badlands (2025) [2160p] [4K] [WEB] [5.1] [YTS.LT]",
       "files": [
-        "Q:\\Movies\\Other\\Predator Badlands (2025) [2160p] [4K] [WEB] [5.1] [YTS.LT]\\Predator.Badlands.2025.2160p.4K.WEB.x265.10bit.AAC5.1-[YTS.LT].mkv"
+        "Predator.Badlands.2025.2160p.4K.WEB.x265.10bit.AAC5.1-[YTS.LT].mkv"
       ],
       "year": "2025",
       "nfo": {
@@ -1314,10 +1383,13 @@
         ],
         "studio": "",
         "tagline": "First hunt. Last chance.",
-        "uniqueids": {},
+        "uniqueids": {
+          "imdb": "tt31227572",
+          "tmdb": "1242898"
+        },
         "actors": []
       },
-      "nfo_quality": "partial"
+      "nfo_quality": "full"
     }
   ]
 }

@@ -44,7 +44,20 @@ This document outlines the tasks required to transform the current CLI-based Mov
   - Detect changes compared to `library_cache` in YAML.
   - Implement "Notify and Update" mechanism in the UI when changes are found.
   - Support manual "Rescan" trigger from the UI.
-
+- [ ] **Rename assistant**
+  - Settings window where we can configure directory and file name structyre (year, name, format, etc)
+  - Rename support that shows files that could be renamed based on the naming convention in settings
+  - these files showed under libray and "show only" as "Rename assist"
+  - Allow for bulk renaming (making multiple files)
+  - Rename button should show proposal based on NFO information and more - IF AVAILABLE; if not, show nothing and let user decide
+- [ ] **NFO details**
+  - SHows text
+  - Shows pictures below - more pictures, show them in a panel, left to right. Let us scroll through them if there are many.
+    Keep pictures at small height.
+  - When opening a series, it shows seasons as icons below.. SUPER. Clicking on a season should show the files below
+  - clicking on an eposide showed then clicking on a season, should updatre info at the top - for that episode.
+  - It should have marking next to each episode for "NFO" or "crossed out NFO" (if incomplete)
+  
 ## 4. Web UI Features (movie-organizer-ui.py)
 - [ ] **Dashboard Layout**:
   - **Top Bar**: Global actions (Rescan, Transcode Queue, Settings info).

@@ -9,6 +9,10 @@ A pure-Python toolset for organizing movie/series files for Jellyfin media libra
 - **Python only.** All application code, tools, and scripts must be written in Python. Do not introduce other backend languages, Node.js tooling, or build systems.
 - The only non-Python code is the browser front-end in `web/static/` (vanilla JS + Bootstrap) and the Jinja2 templates in `web/templates/`. Keep it that way — no frameworks, bundlers, or npm.
 
+## Guardrails
+
+- Always run CLI tools from the project root.
+- Do not start the UI application for testing, this is done by the user
 
 ## Virtual environment
 

@@ -357,11 +357,14 @@ function renderRow(item) {
 
   // NFO icon — 3 states: full (teal), partial/handicapped (orange + strikethrough), absent (dimmed)
   const nfoQuality = item.nfo_quality || (item.nfo && Object.keys(item.nfo).length ? 'partial' : 'none');
+  const isSeries = item.type === 'series';
   let nfoIcon;
   if (nfoQuality === 'full') {
-    nfoIcon = '<i class="bi bi-file-earmark-text nfo-icon nfo-present" title="NFO complete (year + ID present)"></i>';
+    const t = isSeries ? 'NFO complete (all episodes have an NFO)' : 'NFO complete (year + ID present)';
+    nfoIcon = `<i class="bi bi-file-earmark-text nfo-icon nfo-present" title="${t}"></i>`;
   } else if (nfoQuality === 'partial') {
-    nfoIcon = '<i class="bi bi-file-earmark-text nfo-icon nfo-partial" title="NFO incomplete — missing year or external ID"></i>';
+    const t = isSeries ? 'NFO incomplete — some episodes missing an NFO' : 'NFO incomplete — missing year or external ID';
+    nfoIcon = `<i class="bi bi-file-earmark-text nfo-icon nfo-partial" title="${t}"></i>`;
   } else {
     nfoIcon = '<i class="bi bi-file-earmark nfo-icon nfo-absent" title="No NFO file"></i>';
   }
@@ -476,6 +479,17 @@ function showDetail(itemId) {
 // ── NFO status & completeness reasons ────────────────────────────────────
 function nfoIssues(item) {
   const n = item.nfo || {};
+  if (item.type === 'series') {
+    // Series quality is based on per-episode NFO coverage, not tvshow.nfo
+    const total   = (item.files || []).length;
+    const withNfo = item.episode_nfo_count || 0;
+    const issues  = [];
+    if (withNfo < total)
+      issues.push({ text: `${total - withNfo} of ${total} episode(s) missing an .nfo file next to the video`, required: true });
+    if (!Object.keys(n).length)
+      issues.push({ text: 'No series-level tvshow.nfo (optional — Jellyfin matches via episode NFOs)', required: false });
+    return issues;
+  }
   if (!Object.keys(n).length) {
     return [{ text: 'No .nfo file found (or it could not be parsed as XML)', required: true }];
   }
@@ -495,13 +509,16 @@ function nfoIssues(item) {
 function nfoStatusHtml(item) {
   const n = item.nfo || {};
   const quality = item.nfo_quality || (Object.keys(n).length ? 'partial' : 'none');
-  const viewBtn = quality === 'none' ? '' : `
+  // For series the eye button opens tvshow.nfo, which only exists when item.nfo is populated
+  const hasViewable = item.type === 'series' ? Object.keys(n).length > 0 : quality !== 'none';
+  const viewBtn = !hasViewable ? '' : `
     <button type="button" class="btn btn-sm btn-link text-info p-0 ms-2 align-baseline"
             title="View NFO file" data-view-nfo="${esc(item.id)}">
       <i class="bi bi-eye"></i>
     </button>`;
   if (quality === 'full') {
-    return `<span class="text-info"><i class="bi bi-file-earmark-text me-1"></i>Complete</span>${viewBtn}`;
+    const label = item.type === 'series' ? 'Complete (all episodes)' : 'Complete';
+    return `<span class="text-info"><i class="bi bi-file-earmark-text me-1"></i>${label}</span>${viewBtn}`;
   }
   const label = quality === 'partial'
     ? '<span class="text-warning"><i class="bi bi-file-earmark-text me-1"></i>Incomplete</span>'
