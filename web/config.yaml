@@ -1,19 +1,8 @@
-# Movie Organizer Configuration
-# Add your library and download directory paths below.
-
-locations:
-  # - "\\\\NAS\\Movies"
-  # - "\\\\NAS\\Series"
-  - "M:\\Movies"
-  - "M:\\Series"
-
 downloads:
-  - "M:\\Downloaded\\Netflix"
-  - "D:\\Downloaded\\Netflix"
-  - "D:\\Downloaded\\Apple TV"
-
-ffmpeg:
-  ffmpeg_path: "d:\\tools\\ffmpeg\\bin\\ffmpeg.exe"
-  ffprobe_path: "d:\\tools\\ffmpeg\\bin\\ffprobe.exe"
-  output_dir: "D:\\Downloaded\\Netflix\\Netflix-transcoded"
-  output_original: "D:\\Downloaded\\Netflix\\Netflix-original"
+- Q:\Downloaded
+- D:\Downloaded\Netflix
+- D:\Downloaded\Apple TV
+- D:\Downloaded\Disney+
+locations:
+- Q:\Movies
+- R:\Series

@@ -62,6 +62,17 @@ If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The ma
 
 Create files lazily — only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.
 
+### Determine the documentation folder
+
+**Before starting the session**, resolve where `CONTEXT.md` and ADRs will live:
+
+- **No subject argument provided** — use `docs/` as the root. `CONTEXT.md` goes in `docs/`, ADRs go in `docs/adr/`.
+- **A subject argument was provided** (e.g. `"movie conversion"`) — ask the user:
+  > "Should I place `CONTEXT.md` and ADRs in `docs/movie conversion/`? You can specify a different folder name, but it must be inside `docs/`."
+  - Accept the suggested folder or any user-specified alternative, **as long as it is never the project root**.
+  - Once agreed, `CONTEXT.md` goes in `docs/<folder>/` and ADRs go in `docs/<folder>/adr/`.
+  - Never place documentation files in the project root under any circumstance.
+
 ## During the session
 
 ### Challenge against the glossary
