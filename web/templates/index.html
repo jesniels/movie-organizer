@@ -16,7 +16,11 @@
       <i class="bi bi-film me-2 text-primary"></i>Movie Organizer
     </span>
     <div class="d-flex align-items-center gap-2 ms-auto">
-      <span id="scan-badge" class="badge bg-secondary text-nowrap">Idle</span>
+      <span class="position-relative">
+        <span id="scan-badge" class="badge bg-secondary text-nowrap" role="button"
+              title="Click for scan details" onclick="toggleScanPopover(event)">Idle</span>
+        <div id="scan-popover" class="scan-popover d-none"></div>
+      </span>
       <button class="btn btn-sm btn-outline-light" id="btn-rescan" onclick="triggerScan()">
         <i class="bi bi-arrow-clockwise me-1"></i>Rescan
       </button>
@@ -50,18 +54,7 @@
       <!-- Location filters -->
       <div class="mb-3">
         <div class="filter-label">Location</div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="f-library" checked onchange="applyFilters()">
-          <label class="form-check-label" for="f-library">
-            <span class="badge bg-success-subtle text-success-emphasis me-1">●</span>Library
-          </label>
-        </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="f-download" checked onchange="applyFilters()">
-          <label class="form-check-label" for="f-download">
-            <span class="badge bg-warning-subtle text-warning-emphasis me-1">●</span>Downloads
-          </label>
-        </div>
+        <div id="location-filters"></div>
       </div>
 
       <!-- Type filters -->
@@ -85,7 +78,7 @@
 
       <!-- Status summary -->
       <div class="mb-3">
-        <div class="filter-label">Library</div>
+        <div class="filter-label status-link" onclick="quickFilter(null, null)" title="Show everything">Library</div>
         <div id="status-panel">
           <div class="text-muted small fst-italic">Waiting for scan…</div>
         </div>
@@ -144,27 +137,66 @@
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p class="text-muted small">
-            Add the full paths to your movie/series library locations and download directories.
-            Windows UNC paths (e.g. <code>\\NAS\Movies</code>) are supported.
-          </p>
-          <div class="mb-4">
-            <label class="form-label fw-semibold">
-              <i class="bi bi-hdd-network me-1 text-success"></i>Library Locations
-            </label>
-            <div id="locations-list"></div>
-            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="addPath('locations')">
-              <i class="bi bi-plus me-1"></i>Add location
-            </button>
-          </div>
-          <div class="mb-2">
-            <label class="form-label fw-semibold">
-              <i class="bi bi-download me-1 text-warning"></i>Download Directories
-            </label>
-            <div id="downloads-list"></div>
-            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="addPath('downloads')">
-              <i class="bi bi-plus me-1"></i>Add directory
-            </button>
+          <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-paths" type="button" role="tab">
+                <i class="bi bi-hdd-network me-1"></i>Paths
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-notdups" type="button" role="tab">
+                <i class="bi bi-copy me-1"></i>Registered duplicates
+                <span class="badge bg-secondary ms-1" id="notdup-count">0</span>
+              </button>
+            </li>
+          </ul>
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="tab-paths" role="tabpanel">
+              <p class="text-muted small">
+                Add the full paths to your movie/series library locations and download directories.
+                Windows UNC paths (e.g. <code>\\NAS\Movies</code>) are supported.
+              </p>
+              <div class="mb-4">
+                <label class="form-label fw-semibold">
+                  <i class="bi bi-hdd-network me-1 text-success"></i>Library Locations
+                </label>
+                <div id="locations-list"></div>
+                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="addPath('locations')">
+                  <i class="bi bi-plus me-1"></i>Add location
+                </button>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold">
+                  <i class="bi bi-download me-1 text-warning"></i>Download Directories
+                </label>
+                <div id="downloads-list"></div>
+                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="addPath('downloads')">
+                  <i class="bi bi-plus me-1"></i>Add directory
+                </button>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="tab-notdups" role="tabpanel">
+              <p class="text-muted small">
+                Pairs registered as “not a duplicate”. Remove a registration to have the pair
+                flagged as a potential duplicate again.
+              </p>
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <input type="text" id="notdup-filter"
+                       class="form-control form-control-sm bg-dark text-light border-secondary"
+                       placeholder="Filter — matching pairs are selected…" oninput="filterNotDups()">
+                <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="selectNotDups(true)">All</button>
+                <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="selectNotDups(false)">None</button>
+              </div>
+              <div id="notdup-list" class="border border-secondary rounded p-2 mb-2"></div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-danger" onclick="removeNotDups(false)">
+                  <i class="bi bi-trash me-1"></i>Remove selected
+                </button>
+                <button class="btn btn-sm btn-outline-danger ms-auto" onclick="removeNotDups(true)">
+                  <i class="bi bi-trash-fill me-1"></i>Remove all
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer border-secondary">
@@ -350,6 +382,51 @@
     </div>
   </div>
 
+  <!-- NFO field-copy modal -->
+  <div class="modal fade" id="nfoCopyModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2"></i>Copy NFO Fields</h5>
+          <button type="button" class="btn-close btn-close-white" onclick="cancelNfoCopy()"></button>
+        </div>
+        <div class="modal-body">
+          <div id="nfo-copy-info" class="small text-muted mb-3"></div>
+          <div class="d-flex gap-2 mb-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="selectNfoFields(true)">All</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="selectNfoFields(false)">None</button>
+          </div>
+          <div id="nfo-copy-fields"></div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" onclick="cancelNfoCopy()">Cancel</button>
+          <button type="button" class="btn btn-info" onclick="confirmNfoCopy()">
+            <i class="bi bi-arrow-left-right me-1"></i>Copy selected fields
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duplicate compare modal -->
+  <div class="modal fade" id="compareModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-copy me-2 text-danger"></i>Compare Potential Duplicates</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="compare-body"></div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-success" onclick="markNotDuplicate()">
+            <i class="bi bi-check2-circle me-1"></i>Not a duplicate
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Status modal -->
   <div class="modal fade" id="statusModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
@@ -381,6 +458,28 @@
         <div class="modal-body">
           <pre id="dryrun-content" class="small text-light bg-black rounded p-3"
                style="max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NFO view modal (last in DOM so it stacks above detail/compare modals) -->
+  <div class="modal fade" id="nfoViewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title">
+            <i class="bi bi-file-earmark-text me-2"></i>NFO
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="nfo-view-path" class="small text-muted font-monospace text-break mb-2"></div>
+          <pre id="nfo-view-content" class="small text-light bg-black rounded p-3"
+               style="max-height:60vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word"></pre>
         </div>
         <div class="modal-footer border-secondary">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

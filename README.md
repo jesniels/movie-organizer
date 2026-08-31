@@ -81,3 +81,21 @@ The script uses the `.mkv` file as the "anchor." It looks for every other file i
 - Other files: moved and renamed to include the year in the filename (e.g., `-trailer`, `-poster` suffixes preserved).
 
 The script runs non-recursively on the given input folder by design.
+
+## Web UI
+
+A FastAPI-based web interface for browsing and managing the library:
+
+```bash
+python py/movie-organizer-ui.py
+```
+
+Then open `http://localhost:8998`. Library and download locations are configured in `web/config.yaml` (editable in the UI under Settings).
+
+Key features:
+
+*   **Library browser** with search, location/type filters, and clickable sidebar counts and status-dialog stat cards that filter the list.
+*   **Move / Rename / Delete** with dry-run preview by default.
+*   **Duplicate handling:** double-clicking a flagged duplicate opens a side-by-side comparison (metadata, NFO status, file sizes) with the option to copy NFO metadata between copies, or mark the pair as **Not a duplicate** (persisted in `web/not-duplicates.json` and kept up to date when items are moved).
+*   **Play button** on every item — launches the file in the system's default video player.
+*   **Missing episode detection** for series, with a sidebar filter.

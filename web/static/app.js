@@ -9,9 +9,16 @@ let lastScanTime        = null;
 let lastClickedId       = null;    // for shift-click range selection
 let configCache         = { locations: [], downloads: [] };
 let _pollId             = null;    // setInterval id for scan polling
-let activeSpecialFilter = null;    // null | 'duplicates' | 'missing-nfo'
+let activeSpecialFilter = null;    // null | 'duplicates' | 'missing-nfo' | 'missing-eps'
 let duplicateMap        = new Map(); // item.id → [{ id, title, location, path }, ...]
 let lastStatus          = null;    // cached last /api/status response
+let lastScanStatus      = null;    // cached last /api/scan/status response
+let compareIds          = [];      // [leftId, rightId] currently shown in compare modal
+
+// Location filter state: per group, configured root path → checked
+const locState    = { library: {}, download: {} };
+const locExpanded = { library: false, download: false };
+const locTopEmpty = { library: true, download: true };  // top state when group has no roots
 
 // ── Bootstrap modal helpers ───────────────────────────────────────────────────
 const getModal = id => bootstrap.Modal.getOrCreateInstance(document.getElementById(id));
@@ -21,9 +28,37 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load settings whenever the settings modal opens
   document.getElementById('settingsModal').addEventListener('show.bs.modal', loadSettings);
 
+  renderLocationFilters();   // render top-level rows before config arrives
+  fetchConfig();
   pollScanStatus();   // immediate check on load; starts polling if scan is running
   fetchLibrary();
   fetchStatus();
+
+  // Location filter tree: checkbox changes + expand/collapse carets
+  const locEl = document.getElementById('location-filters');
+  locEl.addEventListener('change', e => {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+    const g = cb.dataset.group;
+    if (cb.dataset.top) {
+      if (Object.keys(locState[g]).length) {
+        for (const r of Object.keys(locState[g])) locState[g][r] = cb.checked;
+      }
+      locTopEmpty[g] = cb.checked;
+    } else {
+      locState[g][cb.dataset.root] = cb.checked;
+    }
+    renderLocationFilters();
+    applyFilters();
+  });
+  locEl.addEventListener('click', e => {
+    const caret = e.target.closest('[data-expand]');
+    if (caret) {
+      const g = caret.dataset.expand;
+      locExpanded[g] = !locExpanded[g];
+      renderLocationFilters();
+    }
+  });
 
   // Event delegation for item list
   const list = document.getElementById('item-list');
@@ -31,6 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = e.target.closest('.item-row');
     if (!row) return;
     const id = row.dataset.id;
+    if (e.target.closest('.btn-play')) {
+      playItem(id);
+      return;
+    }
     if (e.ctrlKey || e.metaKey) {
       // Ctrl/Cmd-click: toggle individual item
       if (selectedIds.has(id)) selectedIds.delete(id);
@@ -57,8 +96,36 @@ document.addEventListener('DOMContentLoaded', () => {
     lastClickedId = id;
   });
   list.addEventListener('dblclick', e => {
+    if (e.target.closest('.btn-play')) return;
     const row = e.target.closest('.item-row');
-    if (row) showDetail(row.dataset.id);
+    if (!row) return;
+    const id = row.dataset.id;
+    if (duplicateMap.has(id)) showCompareModal(id);
+    else showDetail(id);
+  });
+
+  // Event delegation for compare modal (play / copy-NFO buttons)
+  document.getElementById('compare-body').addEventListener('click', e => {
+    const playBtn = e.target.closest('[data-play-file]');
+    if (playBtn) {
+      playItem(playBtn.dataset.itemId, playBtn.dataset.playFile || undefined);
+      return;
+    }
+    const copyBtn = e.target.closest('[data-copy-nfo-from]');
+    if (copyBtn) {
+      copyNfo(copyBtn.dataset.copyNfoFrom, copyBtn.dataset.copyNfoTo);
+      return;
+    }
+    const peerSel = e.target.closest('[data-peer-id]');
+    if (peerSel) {
+      showCompareModal(compareIds[0], peerSel.dataset.peerId);
+    }
+  });
+
+  // Global delegation: NFO view buttons (detail + compare modals)
+  document.addEventListener('click', e => {
+    const nfoBtn = e.target.closest('[data-view-nfo]');
+    if (nfoBtn) showNfoView(nfoBtn.dataset.viewNfo);
   });
 });
 
@@ -95,6 +162,14 @@ async function fetchStatus() {
   } catch (_) {}
 }
 
+async function fetchConfig() {
+  try {
+    configCache = await api('GET', '/api/config');
+  } catch (_) { return; }
+  renderLocationFilters();
+  applyFilters();
+}
+
 // Build a map of item.id → array of duplicate peers for fast lookup
 function _buildDuplicateMap(status) {
   duplicateMap.clear();
@@ -107,24 +182,124 @@ function _buildDuplicateMap(status) {
   }
 }
 
-// ── Special filters (duplicates / incomplete NFO) ─────────────────────────────
+// ── Special filters (duplicates / incomplete NFO / missing episodes) ────────
 function toggleSpecialFilter(filter) {
   activeSpecialFilter = (activeSpecialFilter === filter) ? null : filter;
   if (lastStatus) renderStatusPanel(lastStatus);
   applyFilters();
 }
 
+// Quick filter from sidebar/status-modal counts. null/null resets everything.
+function quickFilter(location, type) {
+  setLocGroup('library',  !location || location === 'library');
+  setLocGroup('download', !location || location === 'download');
+  renderLocationFilters();
+  document.getElementById('f-movies').checked   = !type || type === 'movie';
+  document.getElementById('f-series').checked   = !type || type === 'series';
+  document.getElementById('search-input').value = '';
+  activeSpecialFilter = null;
+  if (lastStatus) renderStatusPanel(lastStatus);
+  applyFilters();
+}
+
+// From the status modal stat cards: close the modal, then filter the list
+function statusModalFilter(location, type) {
+  getModal('statusModal').hide();
+  quickFilter(location, type);
+}
+
+// ── Location filter tree ──────────────────────────────────────────────────────
+const _LOC_GROUPS = [
+  { key: 'library',  label: 'Library',   badge: 'bg-success-subtle text-success-emphasis', cfg: 'locations' },
+  { key: 'download', label: 'Downloads', badge: 'bg-warning-subtle text-warning-emphasis', cfg: 'downloads' },
+];
+
+function renderLocationFilters() {
+  const el = document.getElementById('location-filters');
+  el.innerHTML = _LOC_GROUPS.map(g => {
+    // Sync state with configured paths (keep prior choices, default new roots to on)
+    const prev = locState[g.key];
+    const next = {};
+    for (const p of (configCache[g.cfg] || [])) {
+      if (p) next[p] = p in prev ? prev[p] : true;
+    }
+    locState[g.key] = next;
+    const roots = Object.keys(next);
+    const expanded = locExpanded[g.key];
+
+    const children = roots.map((r, i) => `
+      <div class="form-check loc-child">
+        <input class="form-check-input" type="checkbox" id="loc-${g.key}-${i}"
+               data-group="${g.key}" data-root="${esc(r)}" ${next[r] ? 'checked' : ''}>
+        <label class="form-check-label small text-truncate d-block" for="loc-${g.key}-${i}"
+               title="${esc(r)}">${esc(r)}</label>
+      </div>`).join('');
+
+    return `
+      <div class="form-check d-flex align-items-center pe-0">
+        <input class="form-check-input" type="checkbox" id="f-${g.key}" data-group="${g.key}" data-top="1">
+        <label class="form-check-label" for="f-${g.key}">
+          <span class="badge ${g.badge} me-1">●</span>${g.label}
+        </label>
+        ${roots.length ? `
+        <i class="bi bi-chevron-${expanded ? 'down' : 'right'} loc-caret ms-auto"
+           data-expand="${g.key}" role="button" title="${expanded ? 'Collapse' : 'Expand'} locations"></i>` : ''}
+      </div>
+      ${roots.length && expanded ? `<div class="loc-children ms-3">${children}</div>` : ''}`;
+  }).join('');
+
+  // Top checkbox state: checked / indeterminate (square-in-square) / unchecked
+  for (const g of _LOC_GROUPS) {
+    const top  = document.getElementById('f-' + g.key);
+    const vals = Object.values(locState[g.key]);
+    if (vals.length) {
+      top.checked       = vals.every(Boolean);
+      top.indeterminate = vals.some(Boolean) && !vals.every(Boolean);
+    } else {
+      top.checked = locTopEmpty[g.key];
+    }
+  }
+}
+
+function setLocGroup(key, on) {
+  for (const r of Object.keys(locState[key])) locState[key][r] = on;
+  locTopEmpty[key] = on;
+}
+
+const _normRoot = p => p.toLowerCase().replace(/[\\/]+$/, '');
+
+// Longest configured root the item's path falls under, or null
+function _itemRoot(item) {
+  const state = locState[item.location === 'library' ? 'library' : 'download'];
+  const ip = (item.path || '').toLowerCase();
+  let best = null;
+  for (const r of Object.keys(state)) {
+    const n = _normRoot(r);
+    if (ip === n || ip.startsWith(n + '\\') || ip.startsWith(n + '/')) {
+      if (!best || n.length > _normRoot(best).length) best = r;
+    }
+  }
+  return best;
+}
+
+function _locVisible(item) {
+  const key   = item.location === 'library' ? 'library' : 'download';
+  const state = locState[key];
+  const roots = Object.keys(state);
+  if (!roots.length) return locTopEmpty[key];
+  const root = _itemRoot(item);
+  if (root !== null) return state[root];
+  return Object.values(state).some(Boolean);   // path outside configured roots
+}
+
 // ── Filters ───────────────────────────────────────────────────────────────────
 function applyFilters() {
-  const showLib  = document.getElementById('f-library').checked;
-  const showDl   = document.getElementById('f-download').checked;
   const showMov  = document.getElementById('f-movies').checked;
   const showSer  = document.getElementById('f-series').checked;
   const q        = document.getElementById('search-input').value.toLowerCase().trim();
 
   filteredItems = allItems.filter(item => {
-    if (!showLib && item.location === 'library')  return false;
-    if (!showDl  && item.location === 'download') return false;
+    if (!_locVisible(item))                        return false;
     if (!showMov && item.type === 'movie')         return false;
     if (!showSer && item.type === 'series')        return false;
     if (q && !item.title.toLowerCase().includes(q) && !item.folder.toLowerCase().includes(q)) return false;
@@ -136,6 +311,9 @@ function applyFilters() {
     filteredItems = filteredItems.filter(item => duplicateMap.has(item.id));
   } else if (activeSpecialFilter === 'missing-nfo') {
     filteredItems = filteredItems.filter(item => (item.nfo_quality || 'none') !== 'full');
+  } else if (activeSpecialFilter === 'missing-eps') {
+    filteredItems = filteredItems.filter(item =>
+      item.type === 'series' && Object.keys(item.missing_episodes || {}).length > 0);
   }
 
   renderItems();
@@ -215,6 +393,9 @@ function renderRow(item) {
     </div>
     <div class="d-flex align-items-center gap-1 flex-shrink-0">
       ${nfoIcon} ${locBadge} ${typeBadge}
+      <button type="button" class="btn btn-sm btn-play border-0 py-0 px-1" title="Play in system player">
+        <i class="bi bi-play-circle"></i>
+      </button>
     </div>
   </div>`;
 }
@@ -230,34 +411,36 @@ function renderStatusPanel(status) {
   // Count items with incomplete/absent NFO from the already-loaded library
   const incompleteNfoCount = allItems.filter(i => (i.nfo_quality || 'none') !== 'full').length;
 
-  const sfDup = activeSpecialFilter === 'duplicates';
-  const sfNfo = activeSpecialFilter === 'missing-nfo';
+  const sfDup  = activeSpecialFilter === 'duplicates';
+  const sfNfo  = activeSpecialFilter === 'missing-nfo';
+  const sfMiss = activeSpecialFilter === 'missing-eps';
 
   document.getElementById('status-panel').innerHTML = `
     <div class="status-grid">
-      <div class="status-row">
+      <div class="status-row status-link" onclick="quickFilter('library', 'movie')" title="Show library movies">
         <span class="dot dot-success"></span>
         <span>${status.library_movies || 0} movies</span>
       </div>
-      <div class="status-row">
+      <div class="status-row status-link" onclick="quickFilter('library', 'series')" title="Show library series">
         <span class="dot dot-success"></span>
         <span>${status.library_series || 0} series
           <span class="text-muted">(${status.total_library_episodes || 0} ep)</span>
         </span>
       </div>
-      <div class="status-row">
+      <div class="status-row status-link" onclick="quickFilter('download', 'movie')" title="Show download movies">
         <span class="dot dot-warning"></span>
         <span>${status.download_movies || 0} Download movies</span>
       </div>
-      <div class="status-row">
+      <div class="status-row status-link" onclick="quickFilter('download', 'series')" title="Show download series">
         <span class="dot dot-warning"></span>
         <span>${status.download_series || 0} Download series
           <span class="text-muted">(${status.total_download_episodes || 0} ep)</span>
         </span>
       </div>
       ${missCount > 0 ? `
-      <div class="status-row status-link text-warning-emphasis" onclick="showStatusModal()">
-        <i class="bi bi-exclamation-circle text-warning"></i>
+      <div class="status-row status-link text-warning-emphasis${sfMiss ? ' fw-semibold' : ''}"
+           onclick="toggleSpecialFilter('missing-eps')" title="Show only series with missing episodes">
+        <i class="bi bi-${sfMiss ? 'check-square-fill text-warning' : 'exclamation-circle text-warning'}"></i>
         <span>${missCount} series w/ missing ep</span>
       </div>` : ''}
     </div>
@@ -290,16 +473,67 @@ function showDetail(itemId) {
   getModal('detailModal').show();
 }
 
+// ── NFO status & completeness reasons ────────────────────────────────────
+function nfoIssues(item) {
+  const n = item.nfo || {};
+  if (!Object.keys(n).length) {
+    return [{ text: 'No .nfo file found (or it could not be parsed as XML)', required: true }];
+  }
+  const issues = [];
+  if (!n.year)
+    issues.push({ text: 'Missing <year> — Jellyfin needs it to match the movie', required: true });
+  if (!n.uniqueids || !Object.keys(n.uniqueids).length)
+    issues.push({ text: 'Missing unique ID (tmdb / imdb / tvdb) — Jellyfin needs it to match', required: true });
+  if (!n.title)  issues.push({ text: 'Missing <title>', required: false });
+  if (!n.plot)   issues.push({ text: 'Missing <plot>', required: false });
+  if (!(n.genre || []).length) issues.push({ text: 'Missing <genre>', required: false });
+  if (!n.rating) issues.push({ text: 'Missing <rating>', required: false });
+  return issues;
+}
+
+// Status label; for incomplete/missing NFO it is clickable and expands the reasons
+function nfoStatusHtml(item) {
+  const n = item.nfo || {};
+  const quality = item.nfo_quality || (Object.keys(n).length ? 'partial' : 'none');
+  const viewBtn = quality === 'none' ? '' : `
+    <button type="button" class="btn btn-sm btn-link text-info p-0 ms-2 align-baseline"
+            title="View NFO file" data-view-nfo="${esc(item.id)}">
+      <i class="bi bi-eye"></i>
+    </button>`;
+  if (quality === 'full') {
+    return `<span class="text-info"><i class="bi bi-file-earmark-text me-1"></i>Complete</span>${viewBtn}`;
+  }
+  const label = quality === 'partial'
+    ? '<span class="text-warning"><i class="bi bi-file-earmark-text me-1"></i>Incomplete</span>'
+    : '<span class="text-secondary"><i class="bi bi-file-earmark me-1"></i>Not found</span>';
+  const list = nfoIssues(item).map(i => `
+    <div class="${i.required ? 'text-danger-emphasis' : 'text-muted'}">
+      <i class="bi bi-${i.required ? 'x-circle' : 'dash-circle'} me-1"></i>${esc(i.text)}
+      ${i.required ? '<span class="badge bg-danger-subtle text-danger-emphasis ms-1">required</span>' : ''}
+    </div>`).join('');
+  return `
+    <span role="button" title="Click to see why"
+          onclick="this.parentElement.querySelector('.nfo-issues').classList.toggle('d-none')">
+      ${label}<i class="bi bi-question-circle ms-1 small text-muted"></i>
+    </span>${viewBtn}
+    <div class="nfo-issues d-none small mt-1">${list}</div>`;
+}
+
+// ── NFO file viewer ─────────────────────────────────────────────────────────
+async function showNfoView(itemId) {
+  try {
+    const res = await api('GET', '/api/nfo?item_id=' + encodeURIComponent(itemId));
+    document.getElementById('nfo-view-path').textContent = res.path;
+    document.getElementById('nfo-view-content').textContent = res.content;
+    getModal('nfoViewModal').show();
+  } catch (e) {
+    showToast('Could not load NFO: ' + e.message, 'danger');
+  }
+}
+
 function renderMovieDetail(item) {
   const n = item.nfo || {};
-  const hasNfo = Object.keys(n).length > 0;
-  const quality = item.nfo_quality || (hasNfo ? 'partial' : 'none');
-
-  const nfoStatus = quality === 'full'
-    ? '<i class="bi bi-file-earmark-text text-info me-1"></i>Complete'
-    : quality === 'partial'
-    ? '<span class="text-warning"><i class="bi bi-file-earmark-text me-1"></i>Incomplete <span class="text-muted small">(missing year or ID — Jellyfin may not recognise)</span></span>'
-    : '<span class="text-secondary"><i class="bi bi-file-earmark me-1"></i>Not found</span>';
+  const nfoStatus = nfoStatusHtml(item);
 
   const uniqueIds = n.uniqueids || {};
   const uidText = Object.entries(uniqueIds).map(([k, v]) =>
@@ -342,14 +576,7 @@ function renderMovieDetail(item) {
 
 function renderSeriesDetail(item) {
   const n = item.nfo || {};
-  const hasNfo = Object.keys(n).length > 0;
-  const quality = item.nfo_quality || (hasNfo ? 'partial' : 'none');
-
-  const nfoStatus = quality === 'full'
-    ? '<i class="bi bi-file-earmark-text text-info me-1"></i>Complete'
-    : quality === 'partial'
-    ? '<span class="text-warning"><i class="bi bi-file-earmark-text me-1"></i>Incomplete <span class="text-muted small">(missing year or ID — Jellyfin may not recognise)</span></span>'
-    : '<span class="text-secondary"><i class="bi bi-file-earmark me-1"></i>Not found</span>';
+  const nfoStatus = nfoStatusHtml(item);
 
   const uniqueIds = n.uniqueids || {};
   const uidText = Object.entries(uniqueIds).map(([k, v]) =>
@@ -417,6 +644,233 @@ function renderSeriesDetail(item) {
     ${seasonBlocks || '<div class="text-muted">No episode data found.</div>'}`;
 }
 
+// ── Play ───────────────────────────────────────────────────────────────────────
+async function playItem(itemId, file) {
+  try {
+    const body = { item_id: itemId };
+    if (file) body.file = file;
+    const res = await api('POST', '/api/play', body);
+    showToast('Launching player: ' + res.file.split(/[/\\]/).pop(), 'info');
+  } catch (e) {
+    showToast('Play failed: ' + e.message, 'danger');
+  }
+}
+
+// ── Duplicate compare modal ────────────────────────────────────────────────
+function fmtSize(bytes) {
+  if (bytes === null || bytes === undefined) return '–';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let n = bytes, u = 0;
+  while (n >= 1024 && u < units.length - 1) { n /= 1024; u++; }
+  return n.toFixed(u === 0 ? 0 : 1) + ' ' + units[u];
+}
+
+function _compareColumn(item, otherId) {
+  const n = item.nfo || {};
+  const quality = item.nfo_quality || (Object.keys(n).length ? 'partial' : 'none');
+  const nfoStatus = nfoStatusHtml(item);
+
+  const locBadge = item.location === 'library'
+    ? '<span class="badge bg-success-subtle text-success-emphasis">Library</span>'
+    : '<span class="badge bg-warning-subtle text-warning-emphasis">Downloads</span>';
+
+  const uidText = Object.entries(n.uniqueids || {}).map(([k, v]) =>
+    `<span class="badge bg-secondary-subtle text-secondary-emphasis me-1">${esc(k)}:${esc(v)}</span>`
+  ).join('') || '–';
+
+  const rows = [
+    ['Title',  esc(n.title || item.title)],
+    ['Year',   esc(n.year || item.year || '–')],
+    ['Genre',  esc((n.genre || []).join(', ') || '–')],
+    ['Studio', esc(n.studio || '–')],
+    ['Rating', esc(n.rating || '–')],
+    ['NFO',    nfoStatus],
+    ['IDs',    uidText],
+    ['Path',   `<span class="font-monospace text-break" style="font-size:.78em">${esc(item.path)}</span>`],
+  ];
+  if (item.type === 'series') {
+    rows.push(['Episodes', esc(String(item.total_episodes || 0))]);
+  }
+
+  const copyDisabled = quality === 'none' ? ' disabled' : '';
+  return `
+    <div class="border border-secondary rounded p-3 h-100 d-flex flex-column">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        ${locBadge}
+        <span class="fw-semibold text-truncate" title="${esc(item.title)}">${esc(item.title)}</span>
+      </div>
+      <table class="table table-sm table-dark table-striped mb-2">
+        <tbody>
+          ${rows.map(([k, v]) =>
+            `<tr><th class="text-muted fw-normal" style="width:70px">${k}</th><td class="text-break">${v}</td></tr>`
+          ).join('')}
+        </tbody>
+      </table>
+      ${n.plot ? `<p class="text-muted small" style="max-height:70px;overflow-y:auto">${esc(n.plot)}</p>` : ''}
+      <div class="small text-muted mb-1 mt-auto">Files</div>
+      <div class="compare-files small" data-files-for="${esc(item.id)}">
+        ${item.files.map(f => `
+          <div class="d-flex align-items-center gap-1 py-1 border-top border-secondary-subtle">
+            <button type="button" class="btn btn-sm btn-play border-0 py-0 px-1" title="Play this file"
+                    data-play-file="${esc(f)}" data-item-id="${esc(item.id)}">
+              <i class="bi bi-play-circle"></i>
+            </button>
+            <span class="text-truncate" title="${esc(f)}">${esc(f.split(/[/\\]/).pop())}</span>
+            <span class="ms-auto text-nowrap text-muted file-size" data-file="${esc(f)}">…</span>
+          </div>`).join('')}
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button type="button" class="btn btn-sm btn-outline-light" data-play-file="" data-item-id="${esc(item.id)}">
+          <i class="bi bi-play-fill me-1"></i>Play
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-info"${copyDisabled}
+                data-copy-nfo-from="${esc(item.id)}" data-copy-nfo-to="${esc(otherId)}"
+                title="Copy this NFO to the other item">
+          <i class="bi bi-arrow-left-right me-1"></i>Copy NFO to other side
+        </button>
+      </div>
+    </div>`;
+}
+
+async function showCompareModal(itemId, peerId) {
+  const item = allItems.find(i => i.id === itemId);
+  const peers = duplicateMap.get(itemId) || [];
+  if (!item || peers.length === 0) { showDetail(itemId); return; }
+
+  const peerRef  = peerId ? peers.find(p => p.id === peerId) : peers[0];
+  const peerItem = peerRef ? allItems.find(i => i.id === peerRef.id) : null;
+  if (!peerItem) { showDetail(itemId); return; }
+
+  compareIds = [item.id, peerItem.id];
+
+  const peerSelector = peers.length > 1 ? `
+    <div class="mb-3 d-flex align-items-center gap-2 small">
+      <span class="text-muted">Compare with:</span>
+      ${peers.map(p => `
+        <button type="button" class="btn btn-sm ${p.id === peerItem.id ? 'btn-danger' : 'btn-outline-danger'}"
+                data-peer-id="${esc(p.id)}">
+          ${esc(p.location)}: ${esc(p.title)}
+        </button>`).join('')}
+    </div>` : '';
+
+  document.getElementById('compare-body').innerHTML = `
+    ${peerSelector}
+    <div class="row g-3">
+      <div class="col-md-6">${_compareColumn(item, peerItem.id)}</div>
+      <div class="col-md-6">${_compareColumn(peerItem, item.id)}</div>
+    </div>
+    <div class="text-muted small mt-3">
+      <i class="bi bi-lightbulb me-1"></i>
+      Use <strong>Play</strong> to check both videos, <strong>Copy NFO</strong> to transfer metadata,
+      or <strong>Not a duplicate</strong> if these are different titles.
+    </div>`;
+  getModal('compareModal').show();
+
+  // Fill in file sizes asynchronously
+  for (const it of [item, peerItem]) {
+    api('GET', `/api/fileinfo?item_id=${encodeURIComponent(it.id)}`).then(infos => {
+      const container = document.querySelector(`[data-files-for="${CSS.escape(it.id)}"]`);
+      if (!container) return;
+      for (const info of infos) {
+        const el = [...container.querySelectorAll('.file-size')].find(e => e.dataset.file === info.path);
+        if (el) el.textContent = fmtSize(info.size);
+      }
+    }).catch(() => {});
+  }
+}
+
+// ── NFO field-selective copy ──────────────────────────────────────────────────
+let nfoCopyCtx = null;   // { sourceId, targetId } while the field picker is open
+
+const NFO_COPY_FIELDS = [
+  ['title',     'Title',      n => n.title],
+  ['year',      'Year',       n => n.year],
+  ['rating',    'Rating',     n => n.rating],
+  ['tagline',   'Tagline',    n => n.tagline],
+  ['studio',    'Studio',     n => n.studio],
+  ['genre',     'Genre',      n => (n.genre || []).join(', ')],
+  ['plot',      'Plot',       n => n.plot],
+  ['uniqueids', 'Unique IDs', n => Object.entries(n.uniqueids || {}).map(([k, v]) => `${k}:${v}`).join(', ')],
+  ['actors',    'Actors',     n => (n.actors || []).join(', ')],
+];
+
+function copyNfo(sourceId, targetId) {
+  const src = allItems.find(i => i.id === sourceId);
+  const dst = allItems.find(i => i.id === targetId);
+  if (!src || !dst) return;
+  nfoCopyCtx = { sourceId, targetId };
+
+  document.getElementById('nfo-copy-info').innerHTML = `
+    <div><span class="text-muted">From:</span> <span class="font-monospace">${esc(src.path)}</span></div>
+    <div><span class="text-muted">To:</span> <span class="font-monospace">${esc(dst.path)}</span></div>
+    <div class="mt-1">Selected fields replace the target's values; unselected fields are left untouched.</div>`;
+
+  const srcN = src.nfo || {};
+  const dstN = dst.nfo || {};
+  document.getElementById('nfo-copy-fields').innerHTML = NFO_COPY_FIELDS.map(([key, label, get]) => {
+    const val = get(srcN);
+    if (!val) return '';   // nothing to copy for this field
+    const cur = get(dstN);
+    return `
+      <div class="form-check mb-1">
+        <input class="form-check-input nfo-field-check" type="checkbox" id="nfof-${key}" value="${key}" checked>
+        <label class="form-check-label small" for="nfof-${key}">
+          <strong>${label}</strong>: <span class="text-info">${esc(String(val).slice(0, 80))}</span>
+          ${cur ? `<br><span class="text-muted">replaces: ${esc(String(cur).slice(0, 80))}</span>` : ''}
+        </label>
+      </div>`;
+  }).join('') || '<div class="text-muted small">Source NFO has no copyable fields.</div>';
+
+  getModal('compareModal').hide();
+  getModal('nfoCopyModal').show();
+}
+
+function selectNfoFields(on) {
+  document.querySelectorAll('.nfo-field-check').forEach(cb => cb.checked = on);
+}
+
+function cancelNfoCopy() {
+  getModal('nfoCopyModal').hide();
+  nfoCopyCtx = null;
+  if (compareIds.length === 2) showCompareModal(compareIds[0], compareIds[1]);
+}
+
+async function confirmNfoCopy() {
+  if (!nfoCopyCtx) return;
+  const fields = [...document.querySelectorAll('.nfo-field-check:checked')].map(cb => cb.value);
+  if (fields.length === 0) {
+    showToast('Select at least one field to copy.', 'warning');
+    return;
+  }
+  try {
+    const res = await api('POST', '/api/nfo/copy', {
+      source_id: nfoCopyCtx.sourceId,
+      target_id: nfoCopyCtx.targetId,
+      fields,
+    });
+    getModal('nfoCopyModal').hide();
+    nfoCopyCtx = null;
+    showToast(`Copied ${fields.length} NFO field(s) → ${res.to}`, 'success');
+    await fetchLibrary();
+    if (compareIds.length === 2) showCompareModal(compareIds[0], compareIds[1]);
+  } catch (e) {
+    showToast('NFO copy failed: ' + e.message, 'danger');
+  }
+}
+
+async function markNotDuplicate() {
+  if (compareIds.length !== 2) return;
+  try {
+    await api('POST', '/api/not-duplicate', { ids: compareIds });
+    getModal('compareModal').hide();
+    showToast('Marked as not duplicates — this pair will no longer be flagged.', 'success');
+    await fetchStatus();
+    applyFilters();
+  } catch (e) {
+    showToast('Failed: ' + e.message, 'danger');
+  }
+}
+
 // ── Selection ─────────────────────────────────────────────────────────────────
 function _syncRowSelected(row, on) {
   row.classList.toggle('selected', on);
@@ -472,6 +926,8 @@ async function triggerScan() {
 async function pollScanStatus() {
   try {
     const s = await api('GET', '/api/scan/status');
+    lastScanStatus = s;
+    renderScanPopover();
     if (s.scanning) {
       setScanBadge('scanning', s.current_path);
       if (allItems.length === 0) showScanningPlaceholder();
@@ -528,11 +984,104 @@ function setScanBadge(state, extra) {
   }
 }
 
+// ── Scan status popover ───────────────────────────────────────────────────────
+function toggleScanPopover(e) {
+  e.stopPropagation();
+  const pop = document.getElementById('scan-popover');
+  if (pop.classList.contains('d-none')) {
+    pop.classList.remove('d-none');
+    renderScanPopover();
+    pollScanStatus();   // refresh with latest data right away
+  } else {
+    pop.classList.add('d-none');
+  }
+}
+
+document.addEventListener('click', e => {
+  const pop = document.getElementById('scan-popover');
+  if (pop && !pop.classList.contains('d-none') && !e.target.closest('#scan-popover')) {
+    pop.classList.add('d-none');
+  }
+});
+
+function _fmtScanTime(iso) {
+  const d = iso ? new Date(iso) : null;
+  return d && !isNaN(d)
+    ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '—';
+}
+
+function _fmtDuration(startIso, endIso) {
+  const a = new Date(startIso), b = endIso ? new Date(endIso) : new Date();
+  if (isNaN(a) || isNaN(b)) return '';
+  const secs = Math.max(0, Math.round((b - a) / 1000));
+  return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
+}
+
+function renderScanPopover() {
+  const pop = document.getElementById('scan-popover');
+  if (!pop || pop.classList.contains('d-none')) return;
+
+  const s = lastScanStatus;
+  const info = s && s.scan_info;
+  if (!info) {
+    pop.innerHTML = '<div class="text-muted">No scan has run yet in this session.</div>';
+    return;
+  }
+
+  const running = !!s.scanning;
+  const failed  = !!info.error;
+  const title = running
+    ? '<i class="bi bi-arrow-clockwise spin me-1 text-warning"></i>Scan in progress'
+    : failed
+      ? '<i class="bi bi-exclamation-triangle me-1 text-danger"></i>Last scan failed'
+      : '<i class="bi bi-check2 me-1 text-success"></i>Last scan';
+
+  const rows = (info.locations || []).map(l => {
+    let icon, extra = '';
+    if (l.status === 'done') {
+      icon = '<i class="bi bi-check2 text-success"></i>';
+      extra = `<span class="text-muted text-nowrap">${l.items} item${l.items === 1 ? '' : 's'}</span>`;
+    } else if (l.status === 'scanning') {
+      icon = '<i class="bi bi-arrow-clockwise spin text-warning"></i>';
+      extra = '<span class="text-warning text-nowrap">scanning…</span>';
+    } else if (l.status === 'missing') {
+      icon = '<i class="bi bi-slash-circle text-muted"></i>';
+      extra = '<span class="text-muted text-nowrap">not found</span>';
+    } else {
+      icon = '<i class="bi bi-circle text-muted"></i>';
+      extra = '<span class="text-muted text-nowrap">pending</span>';
+    }
+    const typeIcon = l.location_type === 'download'
+      ? '<i class="bi bi-download text-muted" title="Download folder"></i>'
+      : '<i class="bi bi-collection-play text-muted" title="Library"></i>';
+    return `<div class="scan-loc-row">${icon}${typeIcon}
+      <span class="scan-loc-path" title="${esc(l.path)}">${esc(l.path)}</span>${extra}</div>`;
+  }).join('');
+
+  const errorHtml = failed
+    ? `<div class="text-danger mt-2"><i class="bi bi-exclamation-triangle me-1"></i>${esc(info.error)}</div>`
+    : '';
+
+  pop.innerHTML = `
+    <div class="fw-bold mb-2">${title}</div>
+    <div class="d-flex justify-content-between">
+      <span class="text-muted">Started</span><span>${_fmtScanTime(info.started)}</span>
+    </div>
+    <div class="d-flex justify-content-between">
+      <span class="text-muted">${running ? 'Elapsed' : 'Duration'}</span>
+      <span>${_fmtDuration(info.started, info.finished)}</span>
+    </div>
+    ${rows ? `<hr class="my-2"><div>${rows}</div>` : ''}
+    ${errorHtml}`;
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 async function loadSettings() {
   try {
     const cfg = await api('GET', '/api/config');
     configCache = cfg;
+    renderLocationFilters();
     renderPathList('locations-list', 'locations', cfg.locations || []);
     renderPathList('downloads-list', 'downloads', cfg.downloads || []);
     // Populate move target dropdown
@@ -542,6 +1091,74 @@ async function loadSettings() {
       + all.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
   } catch (e) {
     showToast('Could not load settings: ' + e.message, 'warning');
+  }
+  loadNotDuplicates();
+}
+
+// ── Registered duplicates (not-duplicate pairs) ──────────────────────────
+let notDupPairs = [];
+
+async function loadNotDuplicates() {
+  try {
+    notDupPairs = await api('GET', '/api/not-duplicates');
+  } catch (_) {
+    notDupPairs = [];
+  }
+  renderNotDupList();
+}
+
+function renderNotDupList() {
+  document.getElementById('notdup-count').textContent = notDupPairs.length;
+  const listEl = document.getElementById('notdup-list');
+  if (!notDupPairs.length) {
+    listEl.innerHTML = '<div class="text-muted small fst-italic">No pairs registered as “not a duplicate”.</div>';
+    return;
+  }
+  listEl.innerHTML = notDupPairs.map((pair, idx) => `
+    <div class="form-check py-1 border-bottom border-secondary-subtle">
+      <input class="form-check-input notdup-check" type="checkbox" id="nd-${idx}" data-idx="${idx}">
+      <label class="form-check-label small w-100" for="nd-${idx}">
+        <div class="font-monospace text-truncate" title="${esc(pair[0])}">${esc(pair[0])}</div>
+        <div class="font-monospace text-truncate text-muted" title="${esc(pair[1])}">↔ ${esc(pair[1])}</div>
+      </label>
+    </div>`).join('');
+  filterNotDups();
+}
+
+function filterNotDups() {
+  const q = document.getElementById('notdup-filter').value.toLowerCase().trim();
+  if (!q) return;   // clearing the filter keeps the current selection
+  document.querySelectorAll('.notdup-check').forEach(cb => {
+    const pair = notDupPairs[+cb.dataset.idx];
+    cb.checked = pair.some(p => p.toLowerCase().includes(q));
+  });
+}
+
+function selectNotDups(on) {
+  document.querySelectorAll('.notdup-check').forEach(cb => cb.checked = on);
+}
+
+async function removeNotDups(all) {
+  let pairs;
+  if (all) {
+    if (!notDupPairs.length) return;
+    if (!confirm(`Remove all ${notDupPairs.length} registered pair(s)? They will be flagged as potential duplicates again.`)) return;
+    pairs = notDupPairs;
+  } else {
+    pairs = [...document.querySelectorAll('.notdup-check:checked')].map(cb => notDupPairs[+cb.dataset.idx]);
+    if (!pairs.length) {
+      showToast('No pairs selected.', 'warning');
+      return;
+    }
+  }
+  try {
+    const res = await api('POST', '/api/not-duplicates/remove', { pairs });
+    showToast(`Removed ${res.removed} registration(s).`, 'success');
+    await loadNotDuplicates();
+    await fetchStatus();
+    applyFilters();
+  } catch (e) {
+    showToast('Remove failed: ' + e.message, 'danger');
   }
 }
 
@@ -579,6 +1196,9 @@ async function saveSettings(rescan) {
     .map(i => i.value.trim()).filter(Boolean);
   try {
     await api('POST', '/api/config', { locations, downloads });
+    configCache = { locations, downloads };
+    renderLocationFilters();
+    applyFilters();
     getModal('settingsModal').hide();
     if (rescan) {
       showToast('Settings saved. Starting rescan…', 'success');
@@ -786,26 +1406,26 @@ async function showStatusModal() {
       <!-- Stat cards -->
       <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
-          <div class="stat-card border-success">
+          <div class="stat-card border-success stat-clickable" onclick="statusModalFilter('library', 'movie')" title="Show library movies">
             <div class="stat-num">${s.library_movies || 0}</div>
             <div class="stat-label">Library Movies</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
-          <div class="stat-card border-success">
+          <div class="stat-card border-success stat-clickable" onclick="statusModalFilter('library', 'series')" title="Show library series">
             <div class="stat-num">${s.library_series || 0}</div>
             <div class="stat-label">Library Series</div>
             <div class="stat-sub">${s.total_library_episodes || 0} episodes</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
-          <div class="stat-card border-warning">
+          <div class="stat-card border-warning stat-clickable" onclick="statusModalFilter('download', 'movie')" title="Show download movies">
             <div class="stat-num">${s.download_movies || 0}</div>
             <div class="stat-label">Download Movies</div>
           </div>
         </div>
         <div class="col-6 col-md-3">
-          <div class="stat-card border-warning">
+          <div class="stat-card border-warning stat-clickable" onclick="statusModalFilter('download', 'series')" title="Show download series">
             <div class="stat-num">${s.download_series || 0}</div>
             <div class="stat-label">Download Series</div>
             <div class="stat-sub">${s.total_download_episodes || 0} episodes</div>

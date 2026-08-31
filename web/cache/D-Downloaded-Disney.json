@@ -1,7 +1,7 @@
 {
   "path": "D:\\Downloaded\\Disney+",
   "location_type": "download",
-  "last_scan": "2026-08-31T18:45:25.375718",
+  "last_scan": "2026-08-31T21:25:58.694524",
   "items": [
     {
       "id": "D:\\Downloaded\\Disney+\\Criminal Minds",
@@ -122,11 +122,13 @@
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E04_Killer App.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E05_Lucky Strikes.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E06_The Bunker.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E07_Dust & Bones.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E08_Neon Terror.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E09_False Flag.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E10_Submerged.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E11_Full-Tilt Boogie.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E12_Bad Moon on the Rise.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E13_Cure.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E14_Miasma.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E15_Annihilator.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E16_Last Gasp.mkv",
@@ -135,7 +137,32 @@
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E19_Ex Parte.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E20_All You Can Eat.mkv",
         "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E21_Mixed Signals.mkv",
-        "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E22_Believer.mkv"
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S13\\Criminal Minds_S13E22_Believer.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E01_300.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E02_Starter Home.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E03_Rule 34.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E04_Innocence.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E05_Tall Man.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E06_Luke.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E07_Twenty Seven.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E08_Ashley.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E09_Broken Wing.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E10_Flesh and Blood.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E11_Night Lights.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E12_Hamelin.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E13_Chameleon.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E14_Sick and Evil.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S14\\Criminal Minds_S14E15_Truth or Dare.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E01_Under the Skin.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E02_Awakenings.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E03_Spectator Slowing.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E04_Saturday.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E05_Ghost.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E06_Date Night.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E07_Rusty.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E08_Family Tree.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E09_Face Off.mkv",
+        "D:\\Downloaded\\Disney+\\Criminal Minds\\S15\\Criminal Minds_S15E10_And in the end….mkv"
       ],
       "episodes": {
         "8": [
@@ -259,11 +286,13 @@
           4,
           5,
           6,
+          7,
           8,
           9,
           10,
           11,
           12,
+          13,
           14,
           15,
           16,
@@ -273,15 +302,39 @@
           20,
           21,
           22
-        ]
-      },
-      "missing_episodes": {
-        "13": [
+        ],
+        "14": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
           7,
-          13
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "15": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
         ]
       },
-      "total_episodes": 124,
+      "missing_episodes": {},
+      "total_episodes": 151,
       "nfo": {},
       "nfo_quality": "none"
     }

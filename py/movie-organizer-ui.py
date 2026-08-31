@@ -5,11 +5,13 @@ Run from project root:  python py/movie-organizer-ui.py
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
 import re
 import shutil
+import subprocess
 import sys
 import threading
 import xml.etree.ElementTree as ET
@@ -39,6 +41,7 @@ CONFIG_PATH   = BASE_DIR / "web" / "config.yaml"
 CACHE_DIR     = BASE_DIR / "web" / "cache"
 TEMPLATES_DIR = BASE_DIR / "web" / "templates"
 STATIC_DIR    = BASE_DIR / "web" / "static"
+NOT_DUP_PATH  = BASE_DIR / "web" / "not-duplicates.json"
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 VIDEO_EXTS     = {".mkv", ".mp4", ".avi", ".m4v", ".mov", ".wmv"}
@@ -95,10 +98,19 @@ def parse_nfo(nfo_path: Path) -> Dict[str, Any]:
     try:
         root = ET.parse(nfo_path).getroot()
         uniqueids: Dict[str, str] = {}
+        # Jellyfin's NFO saver writes <imdbid>/<tmdbid>/<tvdbid>/<id>; <uniqueid> is Kodi-style
+        for tag, t in (("imdbid", "imdb"), ("imdb_id", "imdb"), ("tmdbid", "tmdb"), ("tvdbid", "tvdb")):
+            v = root.findtext(tag)
+            if v and v.strip() and t not in uniqueids:
+                uniqueids[t] = v.strip()
         for uid in root.findall("uniqueid"):
             t = uid.get("type", "")
-            if uid.text and t:
+            if uid.text and t and t not in uniqueids:
                 uniqueids[t] = uid.text
+        if not uniqueids:
+            v = root.findtext("id")
+            if v and v.strip().startswith("tt"):
+                uniqueids["imdb"] = v.strip()
         actors: List[str] = []
         for actor in root.findall("actor"):
             name = actor.findtext("name")
@@ -279,7 +291,8 @@ def _process_leaf(entry: Path, loc: str, items: List[Dict[str, Any]]) -> None:
         })
 
 
-def _scan_recursive(folder: Path, loc: str, items: List[Dict[str, Any]]) -> None:
+def _scan_recursive(folder: Path, loc: str, items: List[Dict[str, Any]],
+                    excluded: frozenset = frozenset()) -> None:
     try:
         entries = sorted(folder.iterdir(), key=lambda e: e.name.lower())
     except PermissionError as exc:
@@ -295,26 +308,76 @@ def _scan_recursive(folder: Path, loc: str, items: List[Dict[str, Any]]) -> None
     for entry in entries:
         if not entry.is_dir():
             continue
+        if os.path.normcase(os.path.normpath(str(entry))) in excluded:
+            log.info("Skipping %s — it is a separately configured location.", entry)
+            continue
         if _is_leaf_folder(entry):
             _process_leaf(entry, loc, items)
         else:
             log.debug("Descending into grouping folder: %s", entry.name)
-            _scan_recursive(entry, loc, items)
+            _scan_recursive(entry, loc, items, excluded)
 
 
-def scan_path(base: Path, loc: str) -> List[Dict[str, Any]]:
+def scan_path(base: Path, loc: str, excluded: frozenset = frozenset()) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     if not base.is_dir():
         log.warning("Skipping %s location — not a directory: %s", loc, base)
         return items
     log.info("Scanning %s: %s", loc, base)
-    _scan_recursive(base, loc, items)
+    _scan_recursive(base, loc, items, excluded)
     log.info("Finished scanning %s: %d item(s) found", loc, len(items))
     return items
 
 
+def _nested_locations(path: str, all_paths: List[str]) -> frozenset:
+    """Normalized paths of other configured locations nested inside `path`."""
+    base = os.path.normcase(os.path.normpath(path))
+    return frozenset(
+        o for o in (os.path.normcase(os.path.normpath(p)) for p in all_paths)
+        if o != base and o.startswith(base + os.sep)
+    )
+
+
+# ── Not-duplicate pairs (user-dismissed duplicate warnings) ────────────────────
+def _load_not_duplicates() -> List[List[str]]:
+    try:
+        if NOT_DUP_PATH.exists():
+            data = json.loads(NOT_DUP_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return [sorted(p) for p in data if isinstance(p, list) and len(p) == 2]
+    except Exception as exc:
+        log.warning("Could not load %s: %s", NOT_DUP_PATH.name, exc)
+    return []
+
+
+def _save_not_duplicates(pairs: List[List[str]]) -> None:
+    try:
+        NOT_DUP_PATH.write_text(json.dumps(pairs, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError as exc:
+        log.warning("Could not save %s: %s", NOT_DUP_PATH.name, exc)
+
+
+def _dismissed_pairs() -> set:
+    return {tuple(p) for p in _load_not_duplicates()}
+
+
+def _update_not_duplicates_paths(old_base: str, new_base: str) -> None:
+    """Rewrite stored pair ids after a move so dismissals follow the files."""
+    pairs = _load_not_duplicates()
+    changed = False
+    old_prefix = old_base.rstrip("\\/")
+    for pair in pairs:
+        for idx, pid in enumerate(pair):
+            if pid == old_base or pid.startswith(old_prefix + os.sep) or pid.startswith(old_prefix + "/"):
+                pair[idx] = new_base + pid[len(old_base):]
+                changed = True
+    if changed:
+        _save_not_duplicates([sorted(p) for p in pairs])
+
+
 # ── Duplicate detection ────────────────────────────────────────────────────────
-def _find_duplicates(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _find_duplicates(items: List[Dict[str, Any]], dismissed: Optional[set] = None) -> List[Dict[str, Any]]:
+    dismissed = dismissed or set()
     seen: Dict[str, List[Dict]] = {}
     for item in items:
         key = _clean_title(item["title"]).lower().strip()
@@ -326,7 +389,18 @@ def _find_duplicates(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "location": item["location"],
             "path":     item["path"],
         })
-    return [{"title": k, "items": v} for k, v in seen.items() if len(v) > 1]
+    groups = []
+    for k, v in seen.items():
+        if len(v) < 2:
+            continue
+        # Keep only items that still have at least one non-dismissed pairing
+        kept = [
+            i for i in v
+            if any(tuple(sorted((i["id"], o["id"]))) not in dismissed for o in v if o["id"] != i["id"])
+        ]
+        if len(kept) > 1:
+            groups.append({"title": k, "items": kept})
+    return groups
 
 
 # ── Safety helpers ─────────────────────────────────────────────────────────────
@@ -369,10 +443,39 @@ def _save_location_cache(path: str, loc_type: str, items: List[Dict], scan_time:
         log.warning("Could not save cache for %s: %s", path, exc)
 
 
-def _load_all_caches() -> bool:
-    """Load all per-location cache files. Returns True if at least one was loaded."""
+def _compute_status(lib: List[Dict[str, Any]], dl: List[Dict[str, Any]]) -> Dict[str, Any]:
+    lib_movies = [i for i in lib if i["type"] == "movie"]
+    lib_series = [i for i in lib if i["type"] == "series"]
+    dl_movies  = [i for i in dl  if i["type"] == "movie"]
+    dl_series  = [i for i in dl  if i["type"] == "series"]
+    dismissed  = _dismissed_pairs()
+    return {
+        "library_movies":           len(lib_movies),
+        "library_series":           len(lib_series),
+        "download_movies":          len(dl_movies),
+        "download_series":          len(dl_series),
+        "total_library_episodes":   sum(i.get("total_episodes", 0) for i in lib_series),
+        "total_download_episodes":  sum(i.get("total_episodes", 0) for i in dl_series),
+        "duplicate_movies":         _find_duplicates(lib_movies + dl_movies, dismissed),
+        "duplicate_series":         _find_duplicates(lib_series + dl_series, dismissed),
+        "missing_episodes": [
+            {
+                "title":   i["title"],
+                "path":    i["path"],
+                "missing": i["missing_episodes"],
+            }
+            for i in lib_series + dl_series
+            if i.get("missing_episodes")
+        ],
+    }
+
+
+def _load_all_caches(config: Dict[str, Any]) -> bool:
+    """Load cache files for configured locations. Returns True if at least one was loaded."""
     if not CACHE_DIR.exists():
         return False
+    paths = [p for p in config.get("locations", []) + config.get("downloads", []) if p]
+    expected = {_cache_file_for(p) for p in paths}
     files = sorted(CACHE_DIR.glob("*.json"))
     if not files:
         return False
@@ -381,6 +484,9 @@ def _load_all_caches() -> bool:
     scan_times: List[str] = []
     loaded = 0
     for cf in files:
+        if cf not in expected:
+            log.info("Ignoring stale cache %s — no matching configured location.", cf.name)
+            continue
         try:
             payload = json.loads(cf.read_text(encoding="utf-8"))
             if not isinstance(payload, dict) or "items" not in payload:
@@ -396,13 +502,30 @@ def _load_all_caches() -> bool:
             log.warning("Could not load cache %s: %s", cf.name, exc)
     if loaded == 0:
         return False
+    status = _compute_status(lib, dl)
     with _lock:
         _state["library"]   = lib
         _state["downloads"] = dl
         _state["last_scan"] = max(scan_times) if scan_times else None
+        _state["status"]    = status
     log.info("Loaded %d cache file(s): %d library + %d download item(s)",
              loaded, len(lib), len(dl))
     return True
+
+
+def _all_locations_cached(config: Dict[str, Any]) -> bool:
+    """True when every configured *reachable* location has a cache file on disk.
+
+    Unreachable paths (offline drives) are ignored — a rescan cannot produce
+    a cache for them anyway, so requiring one would force a scan on every startup.
+    """
+    paths = [p for p in config.get("locations", []) + config.get("downloads", []) if p]
+    if not paths:
+        return False
+    missing = [p for p in paths if Path(p).is_dir() and not _cache_file_for(p).exists()]
+    for p in missing:
+        log.info("No cache yet for %s — startup scan needed.", p)
+    return not missing
 
 
 # ── App state ──────────────────────────────────────────────────────────────────
@@ -415,6 +538,7 @@ _state: Dict[str, Any] = {
     "downloads":     [],
     "status":        {},
     "scan_error":    None,
+    "scan_info":     None,   # details of ongoing/last scan: started, finished, locations
 }
 
 
@@ -425,6 +549,12 @@ def run_scan(_ignored_config: Any = None) -> None:
             return
         _state["scanning"] = True
         _state["scan_error"] = None
+        _state["scan_info"] = {
+            "started":   datetime.now().isoformat(),
+            "finished":  None,
+            "error":     None,
+            "locations": [],
+        }
 
     try:
         config = load_config()   # fresh read every time
@@ -433,48 +563,41 @@ def run_scan(_ignored_config: Any = None) -> None:
 
         scan_time = datetime.now().isoformat()
 
+        loc_entries: List[Dict[str, Any]] = []
+        for p, loc_type in (
+            [(p, "library") for p in config.get("locations", [])]
+            + [(p, "download") for p in config.get("downloads", [])]
+        ):
+            if not p:
+                continue
+            loc_entries.append({
+                "path":          p,
+                "location_type": loc_type,
+                "status":        "pending" if Path(p).is_dir() else "missing",
+                "items":         None,
+            })
+        with _lock:
+            _state["scan_info"]["locations"] = loc_entries
+
         lib: List[Dict[str, Any]] = []
-        for p in config.get("locations", []):
-            if p and Path(p).is_dir():
-                with _lock:
-                    _state["current_path"] = p
-                location_items = scan_path(Path(p), "library")
-                lib.extend(location_items)
-                _save_location_cache(p, "library", location_items, scan_time)
+        dl:  List[Dict[str, Any]] = []
+        all_paths = [e["path"] for e in loc_entries]
+        for entry in loc_entries:
+            if entry["status"] == "missing":
+                continue
+            p = entry["path"]
+            with _lock:
+                _state["current_path"] = p
+                entry["status"] = "scanning"
+            location_items = scan_path(Path(p), entry["location_type"],
+                                       _nested_locations(p, all_paths))
+            with _lock:
+                entry["status"] = "done"
+                entry["items"]  = len(location_items)
+            (lib if entry["location_type"] == "library" else dl).extend(location_items)
+            _save_location_cache(p, entry["location_type"], location_items, scan_time)
 
-        dl: List[Dict[str, Any]] = []
-        for p in config.get("downloads", []):
-            if p and Path(p).is_dir():
-                with _lock:
-                    _state["current_path"] = p
-                location_items = scan_path(Path(p), "download")
-                dl.extend(location_items)
-                _save_location_cache(p, "download", location_items, scan_time)
-
-        lib_movies = [i for i in lib if i["type"] == "movie"]
-        lib_series = [i for i in lib if i["type"] == "series"]
-        dl_movies  = [i for i in dl  if i["type"] == "movie"]
-        dl_series  = [i for i in dl  if i["type"] == "series"]
-
-        status: Dict[str, Any] = {
-            "library_movies":           len(lib_movies),
-            "library_series":           len(lib_series),
-            "download_movies":          len(dl_movies),
-            "download_series":          len(dl_series),
-            "total_library_episodes":   sum(i.get("total_episodes", 0) for i in lib_series),
-            "total_download_episodes":  sum(i.get("total_episodes", 0) for i in dl_series),
-            "duplicate_movies":         _find_duplicates(lib_movies + dl_movies),
-            "duplicate_series":         _find_duplicates(lib_series + dl_series),
-            "missing_episodes": [
-                {
-                    "title":   i["title"],
-                    "path":    i["path"],
-                    "missing": i["missing_episodes"],
-                }
-                for i in lib_series + dl_series
-                if i.get("missing_episodes")
-            ],
-        }
+        status = _compute_status(lib, dl)
 
         with _lock:
             _state["library"]   = lib
@@ -486,24 +609,32 @@ def run_scan(_ignored_config: Any = None) -> None:
         log.error("Scan failed: %s", exc)
         with _lock:
             _state["scan_error"] = str(exc)
+            if _state["scan_info"]:
+                _state["scan_info"]["error"] = str(exc)
     finally:
         with _lock:
             _state["scanning"]     = False
             _state["current_path"] = None
+            if _state["scan_info"]:
+                _state["scan_info"]["finished"] = datetime.now().isoformat()
 
 
 # ── FastAPI ────────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_config()   # validate config on startup — exits with a clear message if broken
-    cached = _load_all_caches()
-    if cached:
-        log.info("Serving cached data while background scan runs.")
+    config = load_config()   # validate config on startup — exits with a clear message if broken
+    cached = _load_all_caches(config)
+    if cached and _all_locations_cached(config):
+        log.info("All locations cached — startup scan skipped. Use Rescan to refresh.")
     else:
-        log.info("No cache found — UI will update once the initial scan completes.")
-    t = threading.Thread(target=run_scan, daemon=True, name="scanner")
-    t.start()
-    log.info("Background scanner started. Open http://localhost:8080")
+        if cached:
+            log.info("Some locations have no cache — serving cached data while background scan runs.")
+        else:
+            log.info("No cache found — UI will update once the initial scan completes.")
+        t = threading.Thread(target=run_scan, daemon=True, name="scanner")
+        t.start()
+        log.info("Background scanner started.")
+    log.info("Open http://localhost:8998")
     yield
 
 
@@ -552,6 +683,7 @@ def api_scan_status():
             "last_scan":    _state["last_scan"],
             "error":        _state["scan_error"],
             "current_path": _state["current_path"],
+            "scan_info":    copy.deepcopy(_state["scan_info"]),
         }
 
 
@@ -592,6 +724,237 @@ def _resolve_item(item_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _recompute_duplicates() -> None:
+    """Refresh duplicate lists in status from in-memory items (no rescan)."""
+    dismissed = _dismissed_pairs()
+    with _lock:
+        items  = _state["library"] + _state["downloads"]
+        movies = [i for i in items if i["type"] == "movie"]
+        series = [i for i in items if i["type"] == "series"]
+        if _state["status"]:
+            _state["status"]["duplicate_movies"] = _find_duplicates(movies, dismissed)
+            _state["status"]["duplicate_series"] = _find_duplicates(series, dismissed)
+
+
+# ── File info API ──────────────────────────────────────────────────────────────
+@app.get("/api/fileinfo")
+def api_fileinfo(item_id: str):
+    item = _resolve_item(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    out = []
+    for f in item["files"]:
+        p = Path(f)
+        try:
+            st = p.stat()
+            out.append({
+                "path":  f,
+                "name":  p.name,
+                "size":  st.st_size,
+                "mtime": datetime.fromtimestamp(st.st_mtime).isoformat(),
+            })
+        except OSError:
+            out.append({"path": f, "name": p.name, "size": None, "mtime": None})
+    return out
+
+
+# ── Play API ───────────────────────────────────────────────────────────────────
+class PlayBody(BaseModel):
+    item_id: str
+    file:    Optional[str] = None   # must be one of the item's files
+
+
+@app.post("/api/play")
+def api_play(body: PlayBody):
+    item = _resolve_item(body.item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    if body.file:
+        if body.file not in item["files"]:
+            raise HTTPException(400, "File does not belong to this item")
+        target = body.file
+    elif item["files"]:
+        target = item["files"][0]
+    else:
+        raise HTTPException(400, "Item has no video files")
+    if not Path(target).is_file():
+        raise HTTPException(404, f"File not found on disk: {target}")
+    try:
+        if sys.platform == "win32":
+            os.startfile(target)  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", target])
+        else:
+            subprocess.Popen(["xdg-open", target])
+    except Exception as exc:
+        raise HTTPException(500, f"Could not launch player: {exc}")
+    return {"ok": True, "file": target}
+
+
+# ── NFO copy API ───────────────────────────────────────────────────────────────
+def _find_nfo_path(item: Dict[str, Any]) -> Optional[Path]:
+    if item["type"] == "series":
+        p = Path(item["path"]) / "tvshow.nfo"
+        return p if p.exists() else None
+    if item["id"] != item["path"]:   # loose file item
+        p = Path(item["id"]).with_suffix(".nfo")
+        return p if p.exists() else None
+    return next(Path(item["path"]).glob("*.nfo"), None)
+
+
+@app.get("/api/nfo")
+def api_nfo(item_id: str):
+    """Return the raw NFO file content for an item (pretty-printed if valid XML)."""
+    item = _resolve_item(item_id)
+    if not item:
+        raise HTTPException(404, "Not found")
+    nfo_path = _find_nfo_path(item)
+    if not nfo_path:
+        raise HTTPException(404, "No NFO file found for this item")
+    try:
+        raw = nfo_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise HTTPException(500, f"Could not read NFO: {exc}")
+    content = raw
+    try:
+        root = ET.fromstring(raw)
+        ET.indent(root, space="  ")
+        content = ET.tostring(root, encoding="unicode")
+    except ET.ParseError:
+        pass  # not clean XML (e.g. trailing URL) — show the raw file
+    return {"path": str(nfo_path), "content": content}
+
+
+class NfoCopyBody(BaseModel):
+    source_id: str
+    target_id: str
+    fields:    Optional[List[str]] = None   # None/empty → copy whole file
+
+
+# Maps UI field names to NFO XML element tags
+_NFO_FIELD_TAGS = {
+    "title":     "title",
+    "year":      "year",
+    "plot":      "plot",
+    "rating":    "rating",
+    "genre":     "genre",
+    "studio":    "studio",
+    "tagline":   "tagline",
+    "uniqueids": "uniqueid",
+    "actors":    "actor",
+}
+
+
+def _merge_nfo_fields(src_nfo: Path, dst_nfo: Path, fields: List[str], default_root: str) -> None:
+    """Replace only the selected elements in the target NFO with the source's."""
+    src_root = ET.parse(src_nfo).getroot()
+    dst_root: Optional[ET.Element] = None
+    if dst_nfo.exists():
+        try:
+            dst_root = ET.parse(dst_nfo).getroot()
+        except ET.ParseError:
+            dst_root = None   # unparsable target → start fresh
+    if dst_root is None:
+        dst_root = ET.Element(default_root)
+    for field in fields:
+        tag = _NFO_FIELD_TAGS[field]
+        for el in dst_root.findall(tag):
+            dst_root.remove(el)
+        for el in src_root.findall(tag):
+            dst_root.append(copy.deepcopy(el))
+    try:
+        ET.indent(dst_root)
+    except AttributeError:
+        pass   # Python < 3.9
+    ET.ElementTree(dst_root).write(dst_nfo, encoding="utf-8", xml_declaration=True)
+
+
+@app.post("/api/nfo/copy")
+def api_nfo_copy(body: NfoCopyBody):
+    src_item = _resolve_item(body.source_id)
+    dst_item = _resolve_item(body.target_id)
+    if not src_item or not dst_item:
+        raise HTTPException(404, "Item not found")
+    if src_item["type"] != dst_item["type"]:
+        raise HTTPException(400, "Cannot copy NFO between a movie and a series")
+    if body.fields:
+        unknown = [f for f in body.fields if f not in _NFO_FIELD_TAGS]
+        if unknown:
+            raise HTTPException(400, f"Unknown NFO fields: {', '.join(unknown)}")
+    src_nfo = _find_nfo_path(src_item)
+    if not src_nfo:
+        raise HTTPException(400, "Source item has no NFO file")
+    if dst_item["type"] == "series":
+        dst_nfo = Path(dst_item["path"]) / "tvshow.nfo"
+    else:
+        if not dst_item["files"]:
+            raise HTTPException(400, "Target item has no video files")
+        dst_nfo = Path(dst_item["files"][0]).with_suffix(".nfo")
+    try:
+        if body.fields:
+            default_root = "tvshow" if dst_item["type"] == "series" else "movie"
+            _merge_nfo_fields(src_nfo, dst_nfo, body.fields, default_root)
+        else:
+            shutil.copyfile(str(src_nfo), str(dst_nfo))
+    except ET.ParseError as exc:
+        raise HTTPException(500, f"Source NFO is not valid XML: {exc}")
+    except OSError as exc:
+        raise HTTPException(500, f"NFO copy failed: {exc}")
+    # Update in-memory item so the UI reflects the change immediately
+    nfo = parse_nfo(dst_nfo)
+    with _lock:
+        for i in _state["library"] + _state["downloads"]:
+            if i["id"] == dst_item["id"]:
+                i["nfo"] = nfo
+                i["nfo_quality"] = _nfo_quality(nfo)
+                break
+    log.info("NFO copied (%s): %s → %s",
+             ", ".join(body.fields) if body.fields else "whole file", src_nfo, dst_nfo)
+    return {"ok": True, "from": str(src_nfo), "to": str(dst_nfo),
+            "fields": body.fields or "all"}
+
+
+# ── Not-duplicate API ──────────────────────────────────────────────────────────
+class NotDuplicateBody(BaseModel):
+    ids: List[str]
+
+
+@app.post("/api/not-duplicate")
+def api_not_duplicate(body: NotDuplicateBody):
+    if len(body.ids) != 2:
+        raise HTTPException(400, "Exactly two item ids required")
+    pairs = _load_not_duplicates()
+    key = sorted(body.ids)
+    if key not in pairs:
+        pairs.append(key)
+        _save_not_duplicates(pairs)
+        log.info("Marked as not-duplicate: %s ↔ %s", key[0], key[1])
+    _recompute_duplicates()
+    return {"ok": True}
+
+
+@app.get("/api/not-duplicates")
+def api_list_not_duplicates():
+    return _load_not_duplicates()
+
+
+class NotDupRemoveBody(BaseModel):
+    pairs: List[List[str]]
+
+
+@app.post("/api/not-duplicates/remove")
+def api_remove_not_duplicates(body: NotDupRemoveBody):
+    existing  = _load_not_duplicates()
+    to_remove = {tuple(sorted(p)) for p in body.pairs if len(p) == 2}
+    remaining = [p for p in existing if tuple(p) not in to_remove]
+    removed   = len(existing) - len(remaining)
+    if removed:
+        _save_not_duplicates(remaining)
+        _recompute_duplicates()
+        log.info("Removed %d not-duplicate registration(s)", removed)
+    return {"ok": True, "removed": removed, "remaining": len(remaining)}
+
+
 # ── Move API ───────────────────────────────────────────────────────────────────
 class MoveBody(BaseModel):
     item_ids:    List[str]
@@ -617,6 +980,7 @@ def api_move(body: MoveBody):
         else:
             try:
                 shutil.move(str(src), str(dst))
+                _update_not_duplicates_paths(str(src), str(dst))
                 results.append({"id": item_id, "ok": True,  "from": str(src), "to": str(dst)})
             except Exception as exc:
                 results.append({"id": item_id, "ok": False, "error": str(exc)})

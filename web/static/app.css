@@ -26,6 +26,43 @@ html, body {
   margin-bottom: .35rem;
 }
 
+/* ── Scan status popover ─────────────────────────────────────────────────── */
+.scan-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1060;
+  width: 340px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background-color: #1c1f26;
+  border: 1px solid #343a40;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+  text-align: left;
+  white-space: normal;
+  color: #dee2e6;
+  font-weight: 400;
+  cursor: default;
+}
+
+.scan-popover .scan-loc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  min-width: 0;
+}
+
+.scan-popover .scan-loc-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
 /* ── Status panel dots ───────────────────────────────────────────────────── */
 .status-grid { display: flex; flex-direction: column; gap: 5px; }
 
@@ -102,6 +139,51 @@ html, body {
   pointer-events: none;
 }
 
+/* ── Location filter tree ──────────────────────────────────────────────────── */
+.loc-caret {
+  color: #6c757d;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.loc-caret:hover { color: #dee2e6; }
+
+.loc-child { min-width: 0; }
+.loc-child .form-check-label { color: #adb5bd; }
+
+/* Indeterminate group checkbox: square inside a square */
+#location-filters .form-check-input:indeterminate {
+  background-color: transparent;
+  border-color: #0d6efd;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3crect x='4' y='4' width='8' height='8' fill='%230d6efd'/%3e%3c/svg%3e");
+}
+
+/* ── Settings modal: constant height across tabs ─────────────────────────── */
+#settingsModal .modal-body {
+  height: min(560px, 70vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#settingsModal .tab-content {
+  flex: 1;
+  min-height: 0;
+}
+#settingsModal .tab-pane.active {
+  height: 100%;
+  overflow-y: auto;
+}
+#settingsModal #tab-notdups.active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#settingsModal #notdup-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 /* ── Stat cards (Status modal) ───────────────────────────────────────────── */
 .stat-card {
   border: 1px solid;
@@ -110,9 +192,19 @@ html, body {
   text-align: center;
   background-color: rgba(255,255,255,0.03);
 }
+.stat-clickable { cursor: pointer; transition: background-color .1s; }
+.stat-clickable:hover { background-color: rgba(255,255,255,0.08); }
 .stat-num   { font-size: 2rem; font-weight: 700; line-height: 1.1; }
 .stat-label { font-size: 0.8rem; color: #adb5bd; margin-top: 4px; }
 .stat-sub   { font-size: 0.75rem; color: #6c757d; }
+
+/* ── Play button ─────────────────────────────────────────────────────────── */
+.btn-play {
+  color: #6c757d;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.btn-play:hover { color: #20c997; }
 
 /* ── Spinner on scan badge ───────────────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }
