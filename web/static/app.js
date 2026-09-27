@@ -10,6 +10,7 @@ let lastClickedId       = null;    // for shift-click range selection
 let configCache         = { locations: [], downloads: [] };
 let _pollId             = null;    // setInterval id for scan polling
 let activeSpecialFilter = null;    // null | 'duplicates' | 'missing-nfo' | 'missing-eps'
+let activeQuickFilter   = null;    // null | 'location:type' — sidebar summary row currently driving the filters
 let duplicateMap        = new Map(); // item.id → [{ id, title, location, path }, ...]
 let lastStatus          = null;    // cached last /api/status response
 let lastScanStatus      = null;    // cached last /api/scan/status response
@@ -48,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       locState[g][cb.dataset.root] = cb.checked;
     }
+    clearQuickFilterMark();
     renderLocationFilters();
     applyFilters();
   });
@@ -190,7 +192,16 @@ function toggleSpecialFilter(filter) {
 }
 
 // Quick filter from sidebar/status-modal counts. null/null resets everything.
+// Clicking the row that is already active clears the filters again (toggle).
 function quickFilter(location, type) {
+  const key = location && type ? `${location}:${type}` : null;
+  if (key && activeQuickFilter === key) {
+    location = null;
+    type = null;
+    activeQuickFilter = null;
+  } else {
+    activeQuickFilter = key;
+  }
   setLocGroup('library',  !location || location === 'library');
   setLocGroup('download', !location || location === 'download');
   renderLocationFilters();
@@ -199,6 +210,19 @@ function quickFilter(location, type) {
   document.getElementById('search-input').value = '';
   activeSpecialFilter = null;
   if (lastStatus) renderStatusPanel(lastStatus);
+  applyFilters();
+}
+
+// Manual change of the filters above the summary — the summary marking no longer applies
+function clearQuickFilterMark() {
+  if (!activeQuickFilter) return;
+  activeQuickFilter = null;
+  if (lastStatus) renderStatusPanel(lastStatus);
+}
+
+// onchange handler for the manual Type checkboxes / search input
+function manualFilterChanged() {
+  clearQuickFilterMark();
   applyFilters();
 }
 
@@ -418,23 +442,27 @@ function renderStatusPanel(status) {
   const sfNfo  = activeSpecialFilter === 'missing-nfo';
   const sfMiss = activeSpecialFilter === 'missing-eps';
 
+  const qf = (loc, type) => activeQuickFilter === `${loc}:${type}` ? ' qf-active' : '';
+  const qfTitle = (loc, type, label) =>
+    activeQuickFilter === `${loc}:${type}` ? 'Active filter — click to clear' : label;
+
   document.getElementById('status-panel').innerHTML = `
     <div class="status-grid">
-      <div class="status-row status-link" onclick="quickFilter('library', 'movie')" title="Show library movies">
+      <div class="status-row status-link${qf('library', 'movie')}" onclick="quickFilter('library', 'movie')" title="${qfTitle('library', 'movie', 'Show library movies')}">
         <span class="dot dot-success"></span>
         <span>${status.library_movies || 0} movies</span>
       </div>
-      <div class="status-row status-link" onclick="quickFilter('library', 'series')" title="Show library series">
+      <div class="status-row status-link${qf('library', 'series')}" onclick="quickFilter('library', 'series')" title="${qfTitle('library', 'series', 'Show library series')}">
         <span class="dot dot-success"></span>
         <span>${status.library_series || 0} series
           <span class="text-muted">(${status.total_library_episodes || 0} ep)</span>
         </span>
       </div>
-      <div class="status-row status-link" onclick="quickFilter('download', 'movie')" title="Show download movies">
+      <div class="status-row status-link${qf('download', 'movie')}" onclick="quickFilter('download', 'movie')" title="${qfTitle('download', 'movie', 'Show download movies')}">
         <span class="dot dot-warning"></span>
         <span>${status.download_movies || 0} Download movies</span>
       </div>
-      <div class="status-row status-link" onclick="quickFilter('download', 'series')" title="Show download series">
+      <div class="status-row status-link${qf('download', 'series')}" onclick="quickFilter('download', 'series')" title="${qfTitle('download', 'series', 'Show download series')}">
         <span class="dot dot-warning"></span>
         <span>${status.download_series || 0} Download series
           <span class="text-muted">(${status.total_download_episodes || 0} ep)</span>

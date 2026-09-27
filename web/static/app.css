@@ -80,6 +80,14 @@ html, body {
 }
 .status-link:hover { opacity: .8; }
 
+/* Sidebar summary row currently driving the filters */
+.status-link.qf-active {
+  font-style: italic;
+  font-weight: 600;
+  color: var(--bs-light, #f8f9fa);
+  text-decoration: underline;
+}
+
 .dot {
   width: 8px;
   height: 8px;

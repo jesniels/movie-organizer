@@ -47,7 +47,7 @@
           </span>
           <input type="text" id="search-input"
             class="form-control bg-dark text-light border-secondary"
-            placeholder="Search titles…" oninput="applyFilters()">
+            placeholder="Search titles…" oninput="manualFilterChanged()">
         </div>
       </div>
 
@@ -61,13 +61,13 @@
       <div class="mb-3">
         <div class="filter-label">Type</div>
         <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="f-movies" checked onchange="applyFilters()">
+          <input class="form-check-input" type="checkbox" id="f-movies" checked onchange="manualFilterChanged()">
           <label class="form-check-label" for="f-movies">
             <i class="bi bi-film text-muted me-1"></i>Movies
           </label>
         </div>
         <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="f-series" checked onchange="applyFilters()">
+          <input class="form-check-input" type="checkbox" id="f-series" checked onchange="manualFilterChanged()">
           <label class="form-check-label" for="f-series">
             <i class="bi bi-tv text-muted me-1"></i>Series
           </label>
