@@ -74,17 +74,18 @@ def _find_nfo_path(item: Dict[str, Any]) -> Optional[Path]:
     return next(Path(item["path"]).glob("*.nfo"), None)
 
 
-# Maps UI field names to NFO XML element tags
+# Maps UI field names to NFO XML element tags (a field may span several tag styles)
 _NFO_FIELD_TAGS = {
-    "title":     "title",
-    "year":      "year",
-    "plot":      "plot",
-    "rating":    "rating",
-    "genre":     "genre",
-    "studio":    "studio",
-    "tagline":   "tagline",
-    "uniqueids": "uniqueid",
-    "actors":    "actor",
+    "title":     ["title"],
+    "year":      ["year"],
+    "plot":      ["plot"],
+    "rating":    ["rating"],
+    "genre":     ["genre"],
+    "studio":    ["studio"],
+    "tagline":   ["tagline"],
+    # Both Kodi-style <uniqueid> and Jellyfin-style <imdbid>/<tmdbid>/<tvdbid>/<id>
+    "uniqueids": ["uniqueid", "imdbid", "imdb_id", "tmdbid", "tvdbid", "id"],
+    "actors":    ["actor"],
 }
 
 
@@ -100,11 +101,11 @@ def _merge_nfo_fields(src_nfo: Path, dst_nfo: Path, fields: List[str], default_r
     if dst_root is None:
         dst_root = ET.Element(default_root)
     for field in fields:
-        tag = _NFO_FIELD_TAGS[field]
-        for el in dst_root.findall(tag):
-            dst_root.remove(el)
-        for el in src_root.findall(tag):
-            dst_root.append(copy.deepcopy(el))
+        for tag in _NFO_FIELD_TAGS[field]:
+            for el in dst_root.findall(tag):
+                dst_root.remove(el)
+            for el in src_root.findall(tag):
+                dst_root.append(copy.deepcopy(el))
     try:
         ET.indent(dst_root)
     except AttributeError:
@@ -149,12 +150,16 @@ def copy_nfo(source_id: str, target_id: str, fields: Optional[List[str]]) -> Dic
     src_nfo = _find_nfo_path(src_item)
     if not src_nfo:
         raise HTTPException(400, "Source item has no NFO file")
-    if dst_item["type"] == "series":
-        dst_nfo = Path(dst_item["path"]) / "tvshow.nfo"
-    else:
-        if not dst_item["files"]:
-            raise HTTPException(400, "Target item has no video files")
-        dst_nfo = Path(dst_item["files"][0]).with_suffix(".nfo")
+    # Merge into the target's existing NFO when there is one; only fall back to a
+    # new file next to the video (or tvshow.nfo) when the target has no NFO yet.
+    dst_nfo = _find_nfo_path(dst_item)
+    if dst_nfo is None:
+        if dst_item["type"] == "series":
+            dst_nfo = Path(dst_item["path"]) / "tvshow.nfo"
+        else:
+            if not dst_item["files"]:
+                raise HTTPException(400, "Target item has no video files")
+            dst_nfo = Path(dst_item["files"][0]).with_suffix(".nfo")
     try:
         if fields:
             default_root = "tvshow" if dst_item["type"] == "series" else "movie"

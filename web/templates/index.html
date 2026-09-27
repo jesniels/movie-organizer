@@ -244,10 +244,11 @@
         <div class="modal-body">
           <p class="text-warning small">
             <i class="bi bi-exclamation-triangle-fill me-1"></i>
-            The following folders and all their contents will be permanently deleted:
+            Checked items (folders and all their contents) will be permanently deleted.
+            Uncheck anything you want to keep.
           </p>
           <div id="delete-list" class="small mb-3 border border-secondary rounded p-2"
-               style="max-height:200px;overflow-y:auto"></div>
+               style="max-height:300px;overflow-y:auto"></div>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="delete-dryrun" checked>
             <label class="form-check-label text-warning" for="delete-dryrun">
@@ -257,8 +258,8 @@
         </div>
         <div class="modal-footer border-danger">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-danger" onclick="confirmDelete()">
-            <i class="bi bi-trash me-1"></i>Delete
+          <button type="button" class="btn btn-danger" id="delete-confirm-btn" onclick="confirmDelete()">
+            <i class="bi bi-trash me-1"></i>Delete <span id="delete-count">0</span> item(s)
           </button>
         </div>
       </div>
@@ -384,7 +385,7 @@
 
   <!-- NFO field-copy modal -->
   <div class="modal fade" id="nfoCopyModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
       <div class="modal-content bg-dark">
         <div class="modal-header border-secondary">
           <h5 class="modal-title"><i class="bi bi-file-earmark-text me-2"></i>Copy NFO Fields</h5>

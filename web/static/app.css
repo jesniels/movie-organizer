@@ -113,6 +113,21 @@ html, body {
   background-color: rgba(13, 110, 253, 0.35);
 }
 
+/* ── Duplicate group cards (duplicates filter mode) ──────────────────────── */
+.dup-group {
+  background-color: rgba(220, 53, 69, 0.04);
+  overflow: hidden;
+}
+.dup-group-header {
+  background-color: rgba(220, 53, 69, 0.12);
+  border-bottom: 1px solid rgba(220, 53, 69, 0.3);
+  font-size: 0.9rem;
+  min-width: 0;
+}
+.dup-group .item-row:last-child {
+  border-bottom: 0 !important;
+}
+
 /* ── NFO indicator icon ──────────────────────────────────────────────────── */
 .nfo-icon {
   font-size: .85rem;

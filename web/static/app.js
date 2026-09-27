@@ -12,6 +12,8 @@ let _pollId             = null;    // setInterval id for scan polling
 let activeSpecialFilter = null;    // null | 'duplicates' | 'missing-nfo' | 'missing-eps'
 let activeQuickFilter   = null;    // null | 'location:type' — sidebar summary row currently driving the filters
 let duplicateMap        = new Map(); // item.id → [{ id, title, location, path }, ...]
+let duplicateGroups     = [];      // [{ title, items: [...] }, ...] from /api/status
+let dupGroupOf          = new Map(); // item.id → index into duplicateGroups
 let lastStatus          = null;    // cached last /api/status response
 let lastScanStatus      = null;    // cached last /api/scan/status response
 let compareIds          = [];      // [leftId, rightId] currently shown in compare modal
@@ -65,6 +67,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Event delegation for item list
   const list = document.getElementById('item-list');
   list.addEventListener('click', e => {
+    const selGroupBtn = e.target.closest('[data-select-group]');
+    if (selGroupBtn) {
+      toggleGroupSelection(+selGroupBtn.dataset.selectGroup);
+      return;
+    }
+    const cmpGroupBtn = e.target.closest('[data-compare-group]');
+    if (cmpGroupBtn) {
+      const g = duplicateGroups[+cmpGroupBtn.dataset.compareGroup];
+      if (g && g.items.length) showCompareModal(g.items[0].id);
+      return;
+    }
     const row = e.target.closest('.item-row');
     if (!row) return;
     const id = row.dataset.id;
@@ -124,7 +137,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Global delegation: NFO view buttons (detail + compare modals)
+  // Event delegation for delete modal (play buttons + label click toggles checkbox)
+  document.getElementById('delete-list').addEventListener('click', e => {
+    const playBtn = e.target.closest('[data-play-item]');
+    if (playBtn) { playItem(playBtn.dataset.playItem); return; }
+    const label = e.target.closest('.delete-item-label');
+    if (label) {
+      const cb = label.parentElement.querySelector('.delete-check');
+      if (cb) { cb.checked = !cb.checked; updateDeleteCount(); }
+    }
+  });
+
+  // Global delegation: NFO view buttons (detail + compare + delete modals)
   document.addEventListener('click', e => {
     const nfoBtn = e.target.closest('[data-view-nfo]');
     if (nfoBtn) showNfoView(nfoBtn.dataset.viewNfo);
@@ -175,9 +199,14 @@ async function fetchConfig() {
 // Build a map of item.id → array of duplicate peers for fast lookup
 function _buildDuplicateMap(status) {
   duplicateMap.clear();
+  duplicateGroups = [];
+  dupGroupOf.clear();
   const allDups = [...(status.duplicate_movies || []), ...(status.duplicate_series || [])];
   for (const group of allDups) {
+    const gIdx = duplicateGroups.length;
+    duplicateGroups.push(group);
     for (const item of group.items) {
+      dupGroupOf.set(item.id, gIdx);
       const others = group.items.filter(i => i.id !== item.id);
       if (others.length > 0) duplicateMap.set(item.id, others);
     }
@@ -355,7 +384,72 @@ function renderItems() {
     return;
   }
 
-  list.innerHTML = filteredItems.map(renderRow).join('');
+  list.innerHTML = activeSpecialFilter === 'duplicates'
+    ? renderDuplicateGroups()
+    : filteredItems.map(i => renderRow(i)).join('');
+}
+
+// One card per duplicate group, with the copies as selectable sub-rows
+function renderDuplicateGroups() {
+  const byGroup = new Map();   // group index → members present in filteredItems
+  const loose = [];
+  for (const item of filteredItems) {
+    const g = dupGroupOf.get(item.id);
+    if (g === undefined) { loose.push(item); continue; }
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g).push(item);
+  }
+  const cards = [...byGroup.entries()].map(([gIdx, members]) => {
+    const total = duplicateGroups[gIdx].items.length;
+    const countNote = members.length < total
+      ? `${members.length} of ${total} copies shown (others hidden by filters)`
+      : `${total} copies`;
+    return `
+    <div class="dup-group mx-3 my-3 border border-danger-subtle rounded">
+      <div class="dup-group-header d-flex align-items-center gap-2 px-3 py-2">
+        <i class="bi bi-copy text-danger"></i>
+        <span class="fw-semibold text-danger-emphasis text-truncate">${esc(members[0].title)}</span>
+        <span class="text-muted small">${countNote}</span>
+        <div class="ms-auto d-flex gap-1 flex-shrink-0">
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-select-group="${gIdx}"
+                  title="Select/deselect all copies in this group">
+            <i class="bi bi-check2-square me-1"></i>Select group
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0" data-compare-group="${gIdx}"
+                  title="Compare copies side by side">
+            <i class="bi bi-arrows-angle-expand me-1"></i>Compare
+          </button>
+        </div>
+      </div>
+      ${members.map(i => renderRow(i)).join('')}
+    </div>`;
+  }).join('');
+  return cards + loose.map(i => renderRow(i)).join('');
+}
+
+function toggleGroupSelection(gIdx) {
+  const group = duplicateGroups[gIdx];
+  if (!group) return;
+  const ids = group.items.map(i => i.id).filter(id => filteredItems.some(f => f.id === id));
+  const allSelected = ids.length > 0 && ids.every(id => selectedIds.has(id));
+  ids.forEach(id => allSelected ? selectedIds.delete(id) : selectedIds.add(id));
+  _syncAllRowsSelected();
+  updateSelectionUI();
+}
+
+// NFO indicator icon — 3 states: full (teal), partial (orange + strikethrough), absent (dimmed)
+function nfoIconHtml(item) {
+  const quality = item.nfo_quality || (item.nfo && Object.keys(item.nfo).length ? 'partial' : 'none');
+  const isSeries = item.type === 'series';
+  if (quality === 'full') {
+    const t = isSeries ? 'NFO complete (all episodes have an NFO)' : 'NFO complete (year + ID present)';
+    return `<i class="bi bi-file-earmark-text nfo-icon nfo-present" title="${t}"></i>`;
+  }
+  if (quality === 'partial') {
+    const t = isSeries ? 'NFO incomplete — some episodes missing an NFO' : 'NFO incomplete — missing year or external ID';
+    return `<i class="bi bi-file-earmark-text nfo-icon nfo-partial" title="${t}"></i>`;
+  }
+  return '<i class="bi bi-file-earmark nfo-icon nfo-absent" title="No NFO file"></i>';
 }
 
 function renderRow(item) {
@@ -379,34 +473,7 @@ function renderRow(item) {
     ? ' <span class="badge bg-danger-subtle text-danger-emphasis"><i class="bi bi-exclamation-circle me-1"></i>Missing eps</span>'
     : '';
 
-  // NFO icon — 3 states: full (teal), partial/handicapped (orange + strikethrough), absent (dimmed)
-  const nfoQuality = item.nfo_quality || (item.nfo && Object.keys(item.nfo).length ? 'partial' : 'none');
-  const isSeries = item.type === 'series';
-  let nfoIcon;
-  if (nfoQuality === 'full') {
-    const t = isSeries ? 'NFO complete (all episodes have an NFO)' : 'NFO complete (year + ID present)';
-    nfoIcon = `<i class="bi bi-file-earmark-text nfo-icon nfo-present" title="${t}"></i>`;
-  } else if (nfoQuality === 'partial') {
-    const t = isSeries ? 'NFO incomplete — some episodes missing an NFO' : 'NFO incomplete — missing year or external ID';
-    nfoIcon = `<i class="bi bi-file-earmark-text nfo-icon nfo-partial" title="${t}"></i>`;
-  } else {
-    nfoIcon = '<i class="bi bi-file-earmark nfo-icon nfo-absent" title="No NFO file"></i>';
-  }
-
-  // Duplicate info lines (only shown in duplicates filter mode)
-  let dupLines = '';
-  if (activeSpecialFilter === 'duplicates') {
-    const peers = duplicateMap.get(item.id) || [];
-    dupLines = peers.map(p => {
-      const locCls = p.location === 'library' ? 'success' : 'warning';
-      return `<div class="small text-danger-emphasis mt-1">
-        <i class="bi bi-copy me-1"></i>Potential duplicate:
-        <span class="badge bg-${locCls}-subtle text-${locCls}-emphasis ms-1">${esc(p.location)}</span>
-        ${esc(p.title)}
-        <span class="text-muted font-monospace ms-1" style="font-size:.75em">${esc(p.path)}</span>
-      </div>`;
-    }).join('');
-  }
+  const nfoIcon = nfoIconHtml(item);
 
   return `
   <div class="item-row d-flex align-items-center gap-2 px-3 py-2 border-bottom border-secondary-subtle${selected}"
@@ -416,7 +483,6 @@ function renderRow(item) {
         ${esc(item.title)}${yearStr}${epStr}${missBadge}
       </div>
       <div class="small text-muted text-truncate" title="${esc(item.path)}">${esc(item.path)}</div>
-      ${dupLines}
     </div>
     <div class="d-flex align-items-center gap-1 flex-shrink-0">
       ${nfoIcon} ${locBadge} ${typeBadge}
@@ -723,9 +789,17 @@ function _compareColumn(item, otherId) {
     `<span class="badge bg-secondary-subtle text-secondary-emphasis me-1">${esc(k)}:${esc(v)}</span>`
   ).join('') || '–';
 
+  // NFO value, or the scan-derived value marked as "not in the NFO"
+  const nfoOr = (nfoVal, scanVal) => nfoVal
+    ? esc(nfoVal)
+    : scanVal
+      ? `<span class="fst-italic opacity-75" title="Not in the NFO — derived from folder/file name">${esc(scanVal)}</span>
+         <i class="bi bi-exclamation-circle small text-warning" title="Not in the NFO — derived from folder/file name"></i>`
+      : '–';
+
   const rows = [
-    ['Title',  esc(n.title || item.title)],
-    ['Year',   esc(n.year || item.year || '–')],
+    ['Title',  nfoOr(n.title, item.title)],
+    ['Year',   nfoOr(n.year, item.year)],
     ['Genre',  esc((n.genre || []).join(', ') || '–')],
     ['Studio', esc(n.studio || '–')],
     ['Rating', esc(n.rating || '–')],
@@ -845,33 +919,57 @@ function copyNfo(sourceId, targetId) {
   if (!src || !dst) return;
   nfoCopyCtx = { sourceId, targetId };
 
+  const locBadge = i => i.location === 'library'
+    ? '<span class="badge bg-success-subtle text-success-emphasis">Library</span>'
+    : '<span class="badge bg-warning-subtle text-warning-emphasis">Downloads</span>';
+
   document.getElementById('nfo-copy-info').innerHTML = `
-    <div><span class="text-muted">From:</span> <span class="font-monospace">${esc(src.path)}</span></div>
-    <div><span class="text-muted">To:</span> <span class="font-monospace">${esc(dst.path)}</span></div>
-    <div class="mt-1">Selected fields replace the target's values; unselected fields are left untouched.</div>`;
+    <div class="mb-1"><span class="text-muted">From:</span> ${locBadge(src)} <span class="font-monospace">${esc(src.path)}</span></div>
+    <div><span class="text-muted">To:</span> ${locBadge(dst)} <span class="font-monospace">${esc(dst.path)}</span></div>
+    <div class="mt-1">Checked fields replace the target's values; unchecked fields are left untouched.</div>`;
+
+  const clip = v => {
+    const s = String(v);
+    return s.length > 160 ? esc(s.slice(0, 160)) + '…' : esc(s);
+  };
 
   const srcN = src.nfo || {};
   const dstN = dst.nfo || {};
-  document.getElementById('nfo-copy-fields').innerHTML = NFO_COPY_FIELDS.map(([key, label, get]) => {
-    const val = get(srcN);
-    if (!val) return '';   // nothing to copy for this field
-    const cur = get(dstN);
+  const rows = NFO_COPY_FIELDS.map(([key, label, get]) => {
+    const srcVal = get(srcN);
+    const dstVal = get(dstN);
+    if (!srcVal && !dstVal) return '';   // nothing on either side
+    const copyable = !!srcVal;
+    const changed  = copyable && String(srcVal) !== String(dstVal || '');
     return `
-      <div class="form-check mb-1">
-        <input class="form-check-input nfo-field-check" type="checkbox" id="nfof-${key}" value="${key}" checked>
-        <label class="form-check-label small" for="nfof-${key}">
-          <strong>${label}</strong>: <span class="text-info">${esc(String(val).slice(0, 80))}</span>
-          ${cur ? `<br><span class="text-muted">replaces: ${esc(String(cur).slice(0, 80))}</span>` : ''}
-        </label>
-      </div>`;
-  }).join('') || '<div class="text-muted small">Source NFO has no copyable fields.</div>';
+      <tr${copyable ? '' : ' class="opacity-50"'}>
+        <td><input class="form-check-input nfo-field-check" type="checkbox" id="nfof-${key}" value="${key}"
+                   ${copyable ? 'checked' : 'disabled'}></td>
+        <td><label class="form-check-label fw-semibold" for="nfof-${key}">${label}</label></td>
+        <td class="text-info text-break" title="${srcVal ? esc(String(srcVal)) : ''}">${srcVal ? clip(srcVal) : '<span class="text-muted fst-italic">not in NFO</span>'}</td>
+        <td class="text-break ${changed ? 'text-warning' : 'text-muted'}" title="${dstVal ? esc(String(dstVal)) : ''}">${dstVal ? clip(dstVal) : '<span class="fst-italic">not in NFO</span>'}</td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('nfo-copy-fields').innerHTML = rows ? `
+    <table class="table table-sm table-dark table-striped align-middle small mb-0">
+      <thead>
+        <tr>
+          <th style="width:28px"></th>
+          <th style="width:90px">Field</th>
+          <th style="width:40%">From ${locBadge(src)} <span class="fw-normal text-muted">${esc(src.title)}</span></th>
+          <th>To ${locBadge(dst)} <span class="fw-normal text-muted">${esc(dst.title)} — current value</span></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>` : '<div class="text-muted small">Neither NFO has copyable fields.</div>';
 
   getModal('compareModal').hide();
   getModal('nfoCopyModal').show();
 }
 
 function selectNfoFields(on) {
-  document.querySelectorAll('.nfo-field-check').forEach(cb => cb.checked = on);
+  document.querySelectorAll('.nfo-field-check:not(:disabled)').forEach(cb => cb.checked = on);
 }
 
 function cancelNfoCopy() {
@@ -1257,27 +1355,88 @@ async function saveSettings(rescan) {
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
+function _deleteRow(i) {
+  const viewable = i.type === 'series'
+    ? Object.keys(i.nfo || {}).length > 0
+    : (i.nfo_quality || 'none') !== 'none';
+  const viewBtn = viewable ? `
+    <button type="button" class="btn btn-sm btn-link text-info p-0 flex-shrink-0" title="View NFO file"
+            data-view-nfo="${esc(i.id)}"><i class="bi bi-eye"></i></button>` : '';
+  return `
+    <div class="d-flex align-items-center gap-2 py-1 border-bottom border-secondary-subtle">
+      <input type="checkbox" class="form-check-input delete-check m-0 flex-shrink-0"
+             data-id="${esc(i.id)}" checked onchange="updateDeleteCount()">
+      <div class="flex-grow-1 min-w-0 delete-item-label" role="button">
+        <div class="text-truncate">${esc(i.folder)}</div>
+        <div class="small text-muted text-truncate font-monospace" title="${esc(i.path)}">${esc(i.path)}</div>
+      </div>
+      ${nfoIconHtml(i)}${viewBtn}
+      ${i.location === 'library'
+        ? '<span class="badge bg-success-subtle text-success-emphasis">Library</span>'
+        : '<span class="badge bg-warning-subtle text-warning-emphasis">Downloads</span>'}
+      <button type="button" class="btn btn-sm btn-play border-0 py-0 px-1 flex-shrink-0"
+              title="Play — check which copy this is before deleting" data-play-item="${esc(i.id)}">
+        <i class="bi bi-play-circle"></i>
+      </button>
+    </div>`;
+}
+
 function openDeleteDialog() {
   if (selectedIds.size === 0) return;
   const items = [...selectedIds].map(id => allItems.find(i => i.id === id)).filter(Boolean);
-  document.getElementById('delete-list').innerHTML = items.map(i =>
-    `<div class="py-1 border-bottom border-secondary-subtle d-flex align-items-center gap-2">
-       <i class="bi bi-folder2 text-muted"></i>
-       <span class="text-truncate">${esc(i.folder)}</span>
-       <span class="ms-auto">${i.location === 'library'
-         ? '<span class="badge bg-success-subtle text-success-emphasis">Library</span>'
-         : '<span class="badge bg-warning-subtle text-warning-emphasis">Downloads</span>'}</span>
-     </div>`
-  ).join('');
+
+  // Partition selection into duplicate groups (≥2 selected copies) and single items
+  const byGroup = new Map();
+  const singles = [];
+  for (const it of items) {
+    const g = dupGroupOf.get(it.id);
+    if (g === undefined) { singles.push(it); continue; }
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g).push(it);
+  }
+  const groupBlocks = [];
+  for (const [gIdx, members] of byGroup) {
+    if (members.length < 2) { singles.push(...members); continue; }
+    const total = duplicateGroups[gIdx].items.length;
+    const allCopies = members.length >= total;
+    groupBlocks.push(`
+      <div class="border border-danger rounded p-2 mb-2">
+        <div class="small fw-semibold text-danger-emphasis mb-1">
+          <i class="bi bi-copy me-1"></i>Duplicate group: ${esc(members[0].title)}
+        </div>
+        ${allCopies ? `
+        <div class="small text-warning mb-1">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>
+          All ${total} copies are selected — uncheck the copy you want to keep.
+          Use <i class="bi bi-play-circle"></i> to check the videos or <i class="bi bi-eye"></i> to inspect the NFO.
+        </div>` : ''}
+        ${members.map(_deleteRow).join('')}
+      </div>`);
+  }
+
+  document.getElementById('delete-list').innerHTML =
+    groupBlocks.join('') + singles.map(_deleteRow).join('');
   document.getElementById('delete-dryrun').checked = true;
+  updateDeleteCount();
   getModal('deleteModal').show();
 }
 
+function updateDeleteCount() {
+  const n = document.querySelectorAll('.delete-check:checked').length;
+  document.getElementById('delete-count').textContent = n;
+  document.getElementById('delete-confirm-btn').disabled = n === 0;
+}
+
 async function confirmDelete() {
+  const ids = [...document.querySelectorAll('.delete-check:checked')].map(cb => cb.dataset.id);
+  if (!ids.length) {
+    showToast('No items checked for deletion.', 'warning');
+    return;
+  }
   const dryRun = document.getElementById('delete-dryrun').checked;
   try {
     const results = await api('POST', '/api/delete', {
-      item_ids: [...selectedIds],
+      item_ids: ids,
       dry_run: dryRun,
     });
     getModal('deleteModal').hide();
