@@ -3,4 +3,6 @@ venv/**
 py/__pycache__/
 web/__pycache__/
 py/ui/__pycache__/
+web/cache
 web/cache/
+web/cache/**
