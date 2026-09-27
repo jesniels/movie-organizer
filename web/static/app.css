@@ -127,7 +127,12 @@ html, body {
 .dup-group .item-row:last-child {
   border-bottom: 0 !important;
 }
-
+/* Fixed-width columns when comparing 4+ copies (horizontal scroll) */
+.compare-col-fixed {
+  flex: 0 0 auto;
+  min-width: 340px;
+  max-width: 380px;
+}
 /* ── NFO indicator icon ──────────────────────────────────────────────────── */
 .nfo-icon {
   font-size: .85rem;

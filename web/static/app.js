@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     else showDetail(id);
   });
 
-  // Event delegation for compare modal (play / copy-NFO buttons)
+  // Event delegation for compare modal (play / copy-NFO / not-duplicate buttons)
   document.getElementById('compare-body').addEventListener('click', e => {
     const playBtn = e.target.closest('[data-play-file]');
     if (playBtn) {
@@ -128,12 +128,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const copyBtn = e.target.closest('[data-copy-nfo-from]');
     if (copyBtn) {
+      e.preventDefault();
       copyNfo(copyBtn.dataset.copyNfoFrom, copyBtn.dataset.copyNfoTo);
       return;
     }
-    const peerSel = e.target.closest('[data-peer-id]');
-    if (peerSel) {
-      showCompareModal(compareIds[0], peerSel.dataset.peerId);
+    const notDupBtn = e.target.closest('[data-notdup-item]');
+    if (notDupBtn) {
+      markNotDuplicateItem(notDupBtn.dataset.notdupItem);
     }
   });
 
@@ -776,7 +777,7 @@ function fmtSize(bytes) {
   return n.toFixed(u === 0 ? 0 : 1) + ' ' + units[u];
 }
 
-function _compareColumn(item, otherId) {
+function _compareColumn(item, others) {
   const n = item.nfo || {};
   const quality = item.nfo_quality || (Object.keys(n).length ? 'partial' : 'none');
   const nfoStatus = nfoStatusHtml(item);
@@ -842,51 +843,68 @@ function _compareColumn(item, otherId) {
         <button type="button" class="btn btn-sm btn-outline-light" data-play-file="" data-item-id="${esc(item.id)}">
           <i class="bi bi-play-fill me-1"></i>Play
         </button>
+        ${others.length === 1 ? `
         <button type="button" class="btn btn-sm btn-outline-info"${copyDisabled}
-                data-copy-nfo-from="${esc(item.id)}" data-copy-nfo-to="${esc(otherId)}"
+                data-copy-nfo-from="${esc(item.id)}" data-copy-nfo-to="${esc(others[0].id)}"
                 title="Copy this NFO to the other item">
           <i class="bi bi-arrow-left-right me-1"></i>Copy NFO to other side
-        </button>
+        </button>` : `
+        <div class="btn-group">
+          <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle"${copyDisabled}
+                  data-bs-toggle="dropdown" title="Copy this NFO to another copy">
+            <i class="bi bi-arrow-left-right me-1"></i>Copy NFO to…
+          </button>
+          <ul class="dropdown-menu dropdown-menu-dark">
+            ${others.map(o => `
+            <li><a class="dropdown-item small" href="#"
+                   data-copy-nfo-from="${esc(item.id)}" data-copy-nfo-to="${esc(o.id)}">
+              <span class="badge bg-${o.location === 'library' ? 'success' : 'warning'}-subtle text-${o.location === 'library' ? 'success' : 'warning'}-emphasis me-1">${esc(o.location)}</span>
+              <span class="font-monospace" style="font-size:.8em">${esc(o.path)}</span>
+            </a></li>`).join('')}
+          </ul>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-success ms-auto" data-notdup-item="${esc(item.id)}"
+                title="This copy is a different title — stop flagging it against the others">
+          <i class="bi bi-check2-circle"></i>
+        </button>`}
       </div>
     </div>`;
 }
 
-async function showCompareModal(itemId, peerId) {
+async function showCompareModal(itemId) {
   const item = allItems.find(i => i.id === itemId);
   const peers = duplicateMap.get(itemId) || [];
   if (!item || peers.length === 0) { showDetail(itemId); return; }
 
-  const peerRef  = peerId ? peers.find(p => p.id === peerId) : peers[0];
-  const peerItem = peerRef ? allItems.find(i => i.id === peerRef.id) : null;
-  if (!peerItem) { showDetail(itemId); return; }
+  const group = [item, ...peers.map(p => allItems.find(i => i.id === p.id)).filter(Boolean)];
+  if (group.length < 2) { showDetail(itemId); return; }
+  compareIds = group.map(i => i.id);
 
-  compareIds = [item.id, peerItem.id];
+  const wide   = group.length > 3;   // 4+ copies scroll horizontally
+  const colCls = group.length === 2 ? 'col-md-6' : 'col-md-4';
+  const columns = group.map(it => {
+    const others = group.filter(o => o.id !== it.id);
+    const col = _compareColumn(it, others);
+    return wide ? `<div class="compare-col-fixed">${col}</div>` : `<div class="${colCls}">${col}</div>`;
+  }).join('');
 
-  const peerSelector = peers.length > 1 ? `
-    <div class="mb-3 d-flex align-items-center gap-2 small">
-      <span class="text-muted">Compare with:</span>
-      ${peers.map(p => `
-        <button type="button" class="btn btn-sm ${p.id === peerItem.id ? 'btn-danger' : 'btn-outline-danger'}"
-                data-peer-id="${esc(p.id)}">
-          ${esc(p.location)}: ${esc(p.title)}
-        </button>`).join('')}
-    </div>` : '';
-
+  const groupHint = group.length > 2
+    ? `, or <i class="bi bi-check2-circle text-success"></i> on a copy if only that one is a different title`
+    : '';
   document.getElementById('compare-body').innerHTML = `
-    ${peerSelector}
-    <div class="row g-3">
-      <div class="col-md-6">${_compareColumn(item, peerItem.id)}</div>
-      <div class="col-md-6">${_compareColumn(peerItem, item.id)}</div>
-    </div>
+    ${group.length > 2 ? `<div class="text-muted small mb-2"><i class="bi bi-copy me-1"></i>${group.length} copies in this group</div>` : ''}
+    ${wide
+      ? `<div class="d-flex flex-nowrap gap-3 overflow-auto pb-2">${columns}</div>`
+      : `<div class="row g-3">${columns}</div>`}
     <div class="text-muted small mt-3">
       <i class="bi bi-lightbulb me-1"></i>
-      Use <strong>Play</strong> to check both videos, <strong>Copy NFO</strong> to transfer metadata,
-      or <strong>Not a duplicate</strong> if these are different titles.
+      Use <strong>Play</strong> to check the videos, <strong>Copy NFO</strong> to transfer metadata,
+      or <strong>Not a duplicate</strong> if these are all different titles${groupHint}.
     </div>`;
   getModal('compareModal').show();
 
   // Fill in file sizes asynchronously
-  for (const it of [item, peerItem]) {
+  for (const it of group) {
     api('GET', `/api/fileinfo?item_id=${encodeURIComponent(it.id)}`).then(infos => {
       const container = document.querySelector(`[data-files-for="${CSS.escape(it.id)}"]`);
       if (!container) return;
@@ -975,7 +993,7 @@ function selectNfoFields(on) {
 function cancelNfoCopy() {
   getModal('nfoCopyModal').hide();
   nfoCopyCtx = null;
-  if (compareIds.length === 2) showCompareModal(compareIds[0], compareIds[1]);
+  if (compareIds.length >= 2) showCompareModal(compareIds[0]);
 }
 
 async function confirmNfoCopy() {
@@ -995,18 +1013,37 @@ async function confirmNfoCopy() {
     nfoCopyCtx = null;
     showToast(`Copied ${fields.length} NFO field(s) → ${res.to}`, 'success');
     await fetchLibrary();
-    if (compareIds.length === 2) showCompareModal(compareIds[0], compareIds[1]);
+    if (compareIds.length >= 2) showCompareModal(compareIds[0]);
   } catch (e) {
     showToast('NFO copy failed: ' + e.message, 'danger');
   }
 }
 
+// Footer button: none of the copies are duplicates of each other (all pairs)
 async function markNotDuplicate() {
-  if (compareIds.length !== 2) return;
+  if (compareIds.length < 2) return;
   try {
-    await api('POST', '/api/not-duplicate', { ids: compareIds });
+    for (let a = 0; a < compareIds.length; a++)
+      for (let b = a + 1; b < compareIds.length; b++)
+        await api('POST', '/api/not-duplicate', { ids: [compareIds[a], compareIds[b]] });
     getModal('compareModal').hide();
-    showToast('Marked as not duplicates — this pair will no longer be flagged.', 'success');
+    showToast('Marked as not duplicates — these will no longer be flagged against each other.', 'success');
+    await fetchStatus();
+    applyFilters();
+  } catch (e) {
+    showToast('Failed: ' + e.message, 'danger');
+  }
+}
+
+// Per-copy button: only this copy is a different title (pairs vs all others)
+async function markNotDuplicateItem(itemId) {
+  const others = compareIds.filter(id => id !== itemId);
+  if (!others.length) return;
+  try {
+    for (const o of others)
+      await api('POST', '/api/not-duplicate', { ids: [itemId, o] });
+    getModal('compareModal').hide();
+    showToast('Copy marked as not a duplicate of the others.', 'success');
     await fetchStatus();
     applyFilters();
   } catch (e) {
