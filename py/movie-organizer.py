@@ -47,9 +47,10 @@ def main():
 
         print(f"Processing: '{base_name}' -> '{new_folder_name}'")
 
-        # Find all related files (mkv, nfo, jpg, png, etc.)
-        # This matches anything starting with the same filename
-        related_files = [f for f in input_dir.iterdir() if f.name.startswith(base_name) and f.is_file()]
+        # Related files: exact stem, or stem followed by a sidecar separator ("Movie.en.srt", "Movie-poster.jpg").
+        # A plain prefix match would also grab "Aliens.mkv" when organizing "Alien.mkv".
+        related_files = [f for f in input_dir.iterdir() if f.is_file() and (
+            f.stem == base_name or f.name.startswith(base_name + ".") or f.name.startswith(base_name + "-"))]
 
         if not args.dryrun:
             target_folder.mkdir(parents=True, exist_ok=True)

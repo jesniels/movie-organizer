@@ -26,13 +26,17 @@ Raw relocation of an item to any configured path (Library or Download Location).
 
 The Move target picker lists all configured paths from `config.yaml` (both `locations:` and `downloads:`) plus a free-text custom path field.
 
+A loose movie file moves as the file only (never its containing folder). Move refuses when the destination already exists or the destination folder does not exist.
+
 ### Rename
 
-Renames an item's folder, video files, or both. Available as a context action on single items.
+Renames an item's folder, video files, or both. Available as a context action on single items. Loose files can only rename the file; series can only rename the folder (episode names carry `SxxEyy`). Names must be a single path component, and an existing target is refused.
 
 ### Delete
 
-Permanently removes an item's folder (and all contents) from disk. Only items whose path originates from a configured location can be deleted.
+Permanently removes an item from disk: a movie/series folder with all its contents, or — for a loose movie file — only that file. Only items whose path originates from a configured location can be deleted, a configured location itself is never deleted, and a folder holding videos not known from the last scan is refused (rescan first).
+
+> All file-changing actions and their safeguards are tracked in [../APPLICATION-RISKS.md](../APPLICATION-RISKS.md).
 
 ### Empty Folder Cleanup
 

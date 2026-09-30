@@ -96,6 +96,7 @@ html, body {
 }
 .dot-success { background-color: #198754; }
 .dot-warning { background-color: #ffc107; }
+.dot-primary { background-color: #0d6efd; }
 
 /* ── Item list ───────────────────────────────────────────────────────────── */
 .item-row {

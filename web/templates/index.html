@@ -21,6 +21,8 @@
               title="Click for scan details" onclick="toggleScanPopover(event)">Idle</span>
         <div id="scan-popover" class="scan-popover d-none"></div>
       </span>
+      <span id="transcode-badge" class="badge bg-info text-dark text-nowrap d-none" role="button"
+            title="Click for transcoding console" onclick="openTranscodeConsole()"></span>
       <button class="btn btn-sm btn-outline-light" id="btn-rescan" onclick="triggerScan()">
         <i class="bi bi-arrow-clockwise me-1"></i>Rescan
       </button>
@@ -97,6 +99,9 @@
           <button class="btn btn-sm btn-outline-danger" onclick="openDeleteDialog()">
             <i class="bi bi-trash me-1"></i>Delete
           </button>
+          <button class="btn btn-sm btn-outline-info" id="btn-transcode" onclick="openTranscodeDialog()">
+            <i class="bi bi-cpu me-1"></i>Transcode
+          </button>
           <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
             <i class="bi bi-x me-1"></i>Clear selection
           </button>
@@ -111,6 +116,10 @@
       <div class="bg-dark border-bottom border-secondary-subtle px-3 py-2 d-flex align-items-center gap-2">
         <button class="btn btn-sm btn-outline-secondary" onclick="toggleSelectAll()">
           <i class="bi bi-check-all me-1"></i>Select all
+        </button>
+        <button class="btn btn-sm btn-outline-primary d-none" id="btn-select-transcoded" onclick="toggleSelectTranscoded()"
+                title="Show only duplicates caused by transcoding and select the transcoded copies">
+          <i class="bi bi-cpu me-1"></i>Select transcoded
         </button>
         <span class="text-muted small" id="item-count">—</span>
       </div>
@@ -144,6 +153,16 @@
               </button>
             </li>
             <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-naming" type="button" role="tab">
+                <i class="bi bi-input-cursor-text me-1"></i>Naming
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-transcode" type="button" role="tab">
+                <i class="bi bi-cpu me-1"></i>Transcoding
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
               <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-notdups" type="button" role="tab">
                 <i class="bi bi-copy me-1"></i>Registered duplicates
                 <span class="badge bg-secondary ms-1" id="notdup-count">0</span>
@@ -156,6 +175,18 @@
                 Add the full paths to your movie/series library locations and download directories.
                 Windows UNC paths (e.g. <code>\\NAS\Movies</code>) are supported.
               </p>
+              <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="server-mode-check" onchange="updateServerModeUI()">
+                <label class="form-check-label fw-semibold" for="server-mode-check">
+                  <i class="bi bi-hdd-rack me-1 text-info"></i>Running as server
+                </label>
+              </div>
+              <div class="form-text text-muted mb-3" id="server-mode-help">
+                Check this when the app runs on a NAS, server, or in a container. The paths above stay
+                the server's own paths; each path gets an extra <em>local share</em> field — the same folder
+                as seen from <em>your</em> machine (e.g. <code>\\NAS\Movies</code> or a mapped drive).
+                Play buttons use the local share. <strong>Playing is disabled for paths without a local share.</strong>
+              </div>
               <div class="mb-4">
                 <label class="form-label fw-semibold">
                   <i class="bi bi-hdd-network me-1 text-success"></i>Library Locations
@@ -196,6 +227,222 @@
                   <i class="bi bi-trash-fill me-1"></i>Remove all
                 </button>
               </div>
+            </div>
+            <div class="tab-pane fade" id="tab-transcode" role="tabpanel">
+              <p class="text-muted small">
+                Transcoding uses <code>ffmpeg</code> and <code>ffprobe</code>. <strong>Detect / Verify</strong> checks
+                the entered paths (a file or its folder) and searches PATH and common install folders for any that don't work.
+              </p>
+              <div class="mb-3">
+                <label class="form-label fw-semibold" for="tc-ffmpeg">ffmpeg</label>
+                <input type="text" id="tc-ffmpeg" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace"
+                       placeholder="e.g. D:\tools\ffmpeg\bin\ffmpeg.exe">
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold" for="tc-ffprobe">ffprobe</label>
+                <input type="text" id="tc-ffprobe" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace"
+                       placeholder="e.g. D:\tools\ffmpeg\bin\ffprobe.exe">
+              </div>
+              <div class="d-flex align-items-start gap-2 mb-4">
+                <button class="btn btn-sm btn-outline-info text-nowrap" id="tc-detect-btn" onclick="detectTranscodeTools()">
+                  <i class="bi bi-search me-1"></i>Detect / Verify
+                </button>
+                <div id="tc-detect-result" class="small text-muted font-monospace text-break"></div>
+              </div>
+              <div class="mb-4">
+                <label class="form-label fw-semibold" for="tc-output">
+                  <i class="bi bi-folder2-open me-1 text-info"></i>Output folder for transcoded files
+                </label>
+                <input type="text" id="tc-output" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace"
+                       placeholder="e.g. D:\Transcoded">
+                <div class="form-text text-muted">
+                  Required. Movies are written to <code>&lt;folder&gt;\Movies\&lt;Movie folder&gt;\</code>
+                  (a <code>Series</code> subfolder is reserved for series). Output is always <code>.mkv</code>.
+                </div>
+                <div class="input-group input-group-sm mt-2 local-share-row d-none">
+                  <span class="input-group-text bg-dark text-info border-secondary"><i class="bi bi-pc-display me-1"></i>local share</span>
+                  <input type="text" id="tc-output-share"
+                         class="form-control bg-dark text-light border-secondary font-monospace local-share-input"
+                         placeholder="empty → playing disabled for transcoded files"
+                         title="This folder as seen from your machine — used by the Play buttons in server mode">
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-8">
+                  <label class="form-label fw-semibold" for="tc-encoder">
+                    Video encoder
+                    <i class="bi bi-info-circle text-info ms-1" role="button"
+                       title="Which hardware does the video encoding.&#10;&#10;hevc_amf — AMD Radeon GPU. Fast (several times real-time). Only works on a PC with an AMD GPU.&#10;hevc_nvenc — NVIDIA GeForce GPU (GTX 10xx or newer). Fast. Only works on a PC with an NVIDIA GPU.&#10;libx265 — CPU only. Works on any PC and gives the smallest files for the same quality, but is MUCH slower (often slower than real-time).&#10;&#10;Pick the GPU you actually have. If you pick a GPU you don't have, ffmpeg fails immediately with an error in the console."></i>
+                  </label>
+                  <select id="tc-encoder" class="form-select form-select-sm bg-dark text-light border-secondary"
+                          onchange="updateEncoderHelp()">
+                    <option value="hevc_amf">hevc_amf — AMD GPU (HEVC)</option>
+                    <option value="hevc_nvenc">hevc_nvenc — NVIDIA GPU (HEVC)</option>
+                    <option value="libx265">libx265 — CPU (HEVC, slow, best compression)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold" for="tc-qp">
+                    Quality
+                    <i class="bi bi-info-circle text-info ms-1" role="button"
+                       title="Required. A number from 0 to 51 — LOWER means better quality and BIGGER files.&#10;&#10;Each step of about 6 roughly doubles or halves the file size.&#10;&#10;GPU encoders (AMF/NVENC) use a fixed quantizer (QP). libx265 uses CRF, which compresses better, so the same number gives a smaller file there.&#10;&#10;22 is a sensible default: visually very close to the original at 1080p, while usually saving a lot of space compared with H.264 originals."></i>
+                  </label>
+                  <input type="number" id="tc-qp" min="0" max="51" step="1" required
+                         class="form-control form-control-sm bg-dark text-light border-secondary">
+                </div>
+              </div>
+              <div id="tc-encoder-help" class="form-text text-muted"></div>
+              <div class="d-flex align-items-start gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-info text-nowrap" id="tc-test-btn" onclick="testEncoders(false)"
+                        title="Encode a short generated clip with the selected encoder and quality to check it works on the server's machine (nothing is written to disk).">
+                  <i class="bi bi-play-circle me-1"></i>Test encoder
+                </button>
+                <button class="btn btn-sm btn-outline-secondary text-nowrap" id="tc-test-all-btn" onclick="testEncoders(true)"
+                        title="Test all three encoders to see which ones work on this machine.">
+                  <i class="bi bi-list-check me-1"></i>Test all
+                </button>
+                <div id="tc-test-result" class="small flex-grow-1 min-w-0"></div>
+              </div>
+              <hr class="border-secondary my-3">
+              <div class="fw-semibold mb-2"><i class="bi bi-volume-up me-1 text-info"></i>Audio track selection</div>
+              <div class="row g-3">
+                <div class="col-md-5">
+                  <label class="form-label small" for="tc-audio-langs">
+                    Preferred languages (in priority order)
+                    <i class="bi bi-info-circle text-info ms-1" role="button"
+                       title="Comma-separated language codes, most preferred first, e.g.  eng, dan&#10;&#10;3-letter (eng, dan, ger, fre, spa, swe, nor ...) and 2-letter (en, da, de, fr ...) codes are treated as the same language. A track with no language tag also matches when its title contains the language name (e.g. &quot;English&quot;).&#10;&#10;The first language in the list that has a clean track wins. If no language matches, the file is flagged and you pick the track manually."></i>
+                  </label>
+                  <input type="text" id="tc-audio-langs" placeholder="eng"
+                         class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small" for="tc-audio-prefer">
+                    If several tracks match, pick
+                    <i class="bi bi-info-circle text-info ms-1" role="button"
+                       title="Used when a language has more than one clean track.&#10;&#10;First track — the lowest stream index (same as the sample script).&#10;Default track — the track flagged as default in the file, else the first.&#10;Most channels — e.g. 5.1 over stereo; the first one wins on a tie."></i>
+                  </label>
+                  <select id="tc-audio-prefer" class="form-select form-select-sm bg-dark text-light border-secondary">
+                    <option value="first">First track</option>
+                    <option value="default">Default track</option>
+                    <option value="channels">Most channels</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label small" for="tc-audio-reject">
+                    Skip tracks whose title contains
+                    <i class="bi bi-info-circle text-info ms-1" role="button"
+                       title="Comma-separated words (case-insensitive). Tracks with any of these in their title are never auto-selected — used to avoid commentary and audio-description tracks.&#10;&#10;Tracks flagged in the file as commentary, hearing impaired or visual impaired are always skipped as well."></i>
+                  </label>
+                  <input type="text" id="tc-audio-reject"
+                         class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                </div>
+              </div>
+              <div class="form-text text-muted">
+                This only decides the pre-selected track after probing — you can always change it per file before starting.
+              </div>
+              <div class="form-text text-muted">
+                Audio and subtitles are copied unchanged; one audio track is chosen per file after probing.
+              </div>
+            </div>
+            <div class="tab-pane fade" id="tab-naming" role="tabpanel">
+              <div class="alert alert-info small py-2">
+                <i class="bi bi-shield-check me-1"></i><strong>These settings never change any files.</strong>
+                They only decide what the Reorganize dialog <em>suggests</em>. Nothing is renamed, moved or deleted
+                until you select it in the dialog and click <strong>Do it</strong> (dry run is on by default).
+              </div>
+              <p class="text-muted small">
+                The Naming Format defines what a compliant folder and file name looks like. <strong>Reorganize</strong>
+                compares the items shown by your current filters against it and suggests changes.
+              </p>
+              <div class="alert alert-secondary small py-2">
+                <div><strong>Placeholders:</strong> <code>{title}</code> (required) and <code>{year}</code>.
+                  Values come from the NFO when present, otherwise from the folder/file name (scene names such as
+                  <code>Inception.2010.1080p</code> are understood as <code>Inception</code>, <code>2010</code>).
+                  An item without a known year gets no suggestion when the format uses <code>{year}</code>.</div>
+                <div class="mt-1"><strong>Rules:</strong> the result must be a single name — none of
+                  <code>\ / : * ? " &lt; &gt; |</code>, not ending with a dot or space.
+                  <strong>Sanitize rule</strong> (used for titles and for existing names, see below):
+                  <code>:</code> becomes <code> - </code>, other illegal characters are dropped and trailing
+                  dots/spaces are removed (<code>Alien: Covenant</code> → <code>Alien - Covenant</code>).</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold" for="nm-movie-folder">
+                  <i class="bi bi-folder me-1 text-success"></i>Movie folder
+                </label>
+                <input type="text" id="nm-movie-folder" oninput="updateNamingUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace naming-input">
+                <div class="form-text text-muted">
+                  Name of the folder holding one movie. Must contain <code>{title}</code>; <code>{year}</code> recommended
+                  (Jellyfin matches better with it). Preview: <span class="text-light font-monospace" id="nm-movie-folder-preview"></span>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold" for="nm-movie-file">
+                  <i class="bi bi-film me-1 text-info"></i>Movie video file
+                </label>
+                <div class="form-check mb-1">
+                  <input class="form-check-input" type="checkbox" id="nm-file-eq-folder" onchange="updateNamingUI()">
+                  <label class="form-check-label small" for="nm-file-eq-folder">File name = folder name</label>
+                </div>
+                <input type="text" id="nm-movie-file" oninput="updateNamingUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace naming-input">
+                <div class="form-text text-muted">
+                  Name of the video file without extension (the extension is kept). Sidecars with the same stem
+                  (e.g. <code>.en.srt</code>) follow the video. Only single-video movie folders are renamed.
+                  The sync option is also the default for the per-row toggle in the Reorganize dialog.
+                  Preview: <span class="text-light font-monospace" id="nm-movie-file-preview"></span>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold" for="nm-series-folder">
+                  <i class="bi bi-collection-play me-1 text-warning"></i>Series folder
+                </label>
+                <input type="text" id="nm-series-folder" oninput="updateNamingUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace naming-input">
+                <div class="form-text text-muted">
+                  Name of a series folder. Must contain <code>{title}</code>; <code>{year}</code> is allowed.
+                  Episode files and season folders are never renamed to a format — but if their names contain
+                  illegal characters or end with a dot/space, Reorganize offers to sanitize them (see <em>Sanitize names</em> below).
+                  Preview: <span class="text-light font-monospace" id="nm-series-folder-preview"></span>
+                </div>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="nm-rename-files" onchange="updateNamingUI()">
+                <label class="form-check-label" for="nm-rename-files">Suggest renaming of video files</label>
+                <div class="form-text text-muted mt-0">Off → never suggested. On → suggested in the Reorganize dialog, applied only if you select it.</div>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="nm-resolve-nfos">
+                <label class="form-check-label" for="nm-resolve-nfos">Suggest a fix when a movie has several NFO files</label>
+                <div class="form-text text-muted mt-0">
+                  A single NFO — <code>movie.nfo</code> (written by Jellyfin) or named after the video — is always left alone.
+                  When a movie has several NFOs, the dialog lets you choose: <em>use the best</em> (renamed to the video's
+                  name, the others deleted), <em>delete all</em> (Jellyfin recreates it on its next scan), or
+                  <em>leave as is</em> (the default). NFOs with the video's name always follow a renamed video.
+                </div>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="nm-delete-images">
+                <label class="form-check-label" for="nm-delete-images">Suggest deleting images when a loose file gets its own folder</label>
+                <div class="form-text text-muted mt-0">
+                  Only <code>jpg/jpeg/png</code> files with the video's exact name — Jellyfin regenerates them.
+                  Off → never suggested; the images are moved into the new folder instead.
+                </div>
+              </div>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="nm-sanitize-names">
+                <label class="form-check-label" for="nm-sanitize-names">Suggest sanitizing illegal names</label>
+                <div class="form-text text-muted mt-0">
+                  Reorganize checks <strong>every file and folder</strong> of the items shown by your filters — movie and
+                  series folders, season folders, episodes, extras, subtitles and NFOs — plus the folders above them up to
+                  the library/download folder. A name that contains
+                  <code>\ / : * ? " &lt; &gt; |</code> or a control character, or ends with a dot or space (for files: the
+                  name before the extension, e.g. <code>Show S01E01 .mkv</code>), is suggested for sanitizing with the
+                  sanitize rule above. Nothing else in the name changes — <code>S01E01</code> stays intact. Subtitles/NFOs
+                  with the same name as a video follow it.
+                </div>
+              </div>
+              <div id="nm-error" class="small text-danger mt-2"></div>
             </div>
           </div>
         </div>
@@ -244,7 +491,8 @@
         <div class="modal-body">
           <p class="text-warning small">
             <i class="bi bi-exclamation-triangle-fill me-1"></i>
-            Checked items (folders and all their contents) will be permanently deleted.
+            Checked items will be permanently deleted — a movie folder with all its contents,
+            or only the file itself for a loose file.
             Uncheck anything you want to keep.
           </p>
           <div id="delete-list" class="small mb-3 border border-secondary rounded p-2"
@@ -419,6 +667,10 @@
         </div>
         <div class="modal-body" id="compare-body"></div>
         <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-primary me-auto d-none" id="compare-use-transcoded-btn"
+                  onclick="openUseTranscoded()" title="Replace the original video with the transcoded one">
+            <i class="bi bi-cpu me-1"></i>Use transcoded video
+          </button>
           <button type="button" class="btn btn-outline-success" onclick="markNotDuplicate()">
             <i class="bi bi-check2-circle me-1"></i>Not a duplicate
           </button>
@@ -461,6 +713,96 @@
                style="max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
         </div>
         <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Use transcoded video confirmation modal -->
+  <div class="modal fade" id="useTranscodedModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content bg-dark border border-danger">
+        <div class="modal-header border-danger">
+          <h5 class="modal-title text-danger"><i class="bi bi-cpu me-2"></i>Use transcoded video</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body small">
+          <p class="text-warning">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            The original video file(s) will be <strong>permanently replaced</strong> by the transcoded file(s)
+            (always <code>.mkv</code> — an original with another extension is deleted).
+            NFO and image files are kept. The transcoded folder is deleted afterwards.
+            Play both copies first if you are not sure.
+          </p>
+          <div class="mb-3">
+            <div class="text-muted">Transcoded copy</div>
+            <div id="ut-transcoded" class="font-monospace text-break"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted" for="ut-original">Replace the video of</label>
+            <select id="ut-original" class="form-select form-select-sm bg-dark text-light border-secondary font-monospace"></select>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="ut-dryrun" checked>
+            <label class="form-check-label text-warning" for="ut-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only, no files changed
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer border-danger">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" onclick="confirmUseTranscoded()">
+            <i class="bi bi-cpu me-1"></i>Use transcoded video
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transcode start modal -->
+  <div class="modal fade" id="transcodeModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-cpu me-2 text-info"></i>Transcode</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="tc-options" class="small mb-3"></div>
+          <div id="tc-files" class="small"></div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <span id="tc-footer-note" class="small text-muted me-auto"></span>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-outline-info" id="tc-probe-btn" onclick="probeTranscodeFiles()">
+            <i class="bi bi-search me-1"></i>Probe files
+          </button>
+          <button type="button" class="btn btn-info" id="tc-start-btn" onclick="startTranscode()" disabled>
+            <i class="bi bi-play-fill me-1"></i>Start transcoding <span id="tc-start-count"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transcode console modal -->
+  <div class="modal fade" id="transcodeConsoleModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-terminal me-2 text-info"></i>Transcoding</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="tc-console-files" class="small mb-3"></div>
+          <pre id="tc-console-log" class="small text-light bg-black rounded p-3 mb-0"
+               style="height:45vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-danger me-auto" id="tc-kill-btn" onclick="killTranscode()">
+            <i class="bi bi-x-octagon me-1"></i>Kill transcoding
+          </button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         </div>
       </div>

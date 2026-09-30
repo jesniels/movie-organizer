@@ -74,7 +74,7 @@ python organize_movies.py "D:\Downloads" "E:\Movies" --verbose
 ```
 
 ## How it handles filenames
-The script uses the `.mkv` file as the "anchor." It looks for every other file in the directory that starts with the same name as the movie file and moves them into the new `Movie (Year)` folder. Behavior summary:
+The script uses the `.mkv` file as the "anchor." It moves every other file that belongs to the movie — the exact same name, or the same name followed by `.` or `-` (e.g. `Movie.en.srt`, `Movie-poster.jpg`) — into the new `Movie (Year)` folder. A different movie whose name merely starts the same way (`Aliens.mkv` vs `Alien.mkv`) is left alone. Behavior summary:
 
 - `.nfo` files: moved into the movie folder and renamed to `movie.nfo`.
 - Image files (`.jpg`, `.jpeg`, `.png`): deleted from the source (Jellyfin recreates them on scan).
@@ -99,3 +99,8 @@ Key features:
 *   **Duplicate handling:** double-clicking a flagged duplicate opens a side-by-side comparison (metadata, NFO status, file sizes) with the option to copy NFO metadata between copies, or mark the pair as **Not a duplicate** (persisted in `web/not-duplicates.json` and kept up to date when items are moved).
 *   **Play button** on every item — launches the file in the system's default video player.
 *   **Missing episode detection** for series, with a sidebar filter.
+*   **Transcoding** (ffmpeg/ffprobe) of selected movies into a separate output folder, with probing, live progress, console and kill; transcoded copies show up as duplicates and can replace the original video ("Use transcoded video"). See [docs/transcoding/IMPLEMENTATION-PLAN.md](docs/transcoding/IMPLEMENTATION-PLAN.md).
+
+## Safety
+
+Everything that moves, renames, overwrites or deletes files is listed — with its safeguard or as an open risk — in [docs/APPLICATION-RISKS.md](docs/APPLICATION-RISKS.md). Read it before changing such code, and keep it up to date.

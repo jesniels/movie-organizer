@@ -6,7 +6,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from .duplicates import _dismissed_pairs, _find_duplicates
 from .nfo import _nfo_quality, parse_nfo
@@ -19,6 +19,9 @@ from .settings import (
     _clean_title,
     load_config,
     log,
+    safe_transcoded_root,
+    transcoded_root,
+    transcoded_root_conflict,
 )
 from .state import _lock, _state
 
@@ -220,6 +223,19 @@ def _nested_locations(path: str, all_paths: List[str]) -> frozenset:
     )
 
 
+def _location_entries(config: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """(path, location_type) for every configured location, incl. the transcode output folder."""
+    entries = ([(p, "library") for p in config.get("locations", []) if p]
+               + [(p, "download") for p in config.get("downloads", []) if p])
+    root = transcoded_root(config)
+    conflict = transcoded_root_conflict(config)
+    if conflict:
+        log.warning("Not scanning the transcode output folder: %s", conflict)
+    elif root:
+        entries.append((root, "transcoded"))
+    return entries
+
+
 # ── Cache persistence ─────────────────────────────────────────────────────────
 def _rel_or_abs(p: str, root: str) -> str:
     """Path relative to root when inside it, otherwise unchanged."""
@@ -319,28 +335,35 @@ def _save_location_cache(path: str, loc_type: str, items: List[Dict], scan_time:
         log.warning("Could not save cache for %s: %s", path, exc)
 
 
-def _compute_status(lib: List[Dict[str, Any]], dl: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _compute_status(lib: List[Dict[str, Any]], dl: List[Dict[str, Any]],
+                    tr: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    tr = tr or []
     lib_movies = [i for i in lib if i["type"] == "movie"]
     lib_series = [i for i in lib if i["type"] == "series"]
     dl_movies  = [i for i in dl  if i["type"] == "movie"]
     dl_series  = [i for i in dl  if i["type"] == "series"]
+    tr_movies  = [i for i in tr  if i["type"] == "movie"]
+    tr_series  = [i for i in tr  if i["type"] == "series"]
     dismissed  = _dismissed_pairs()
     return {
         "library_movies":           len(lib_movies),
         "library_series":           len(lib_series),
         "download_movies":          len(dl_movies),
         "download_series":          len(dl_series),
+        "transcoded_movies":        len(tr_movies),
+        "transcoded_series":        len(tr_series),
         "total_library_episodes":   sum(i.get("total_episodes", 0) for i in lib_series),
         "total_download_episodes":  sum(i.get("total_episodes", 0) for i in dl_series),
-        "duplicate_movies":         _find_duplicates(lib_movies + dl_movies, dismissed),
-        "duplicate_series":         _find_duplicates(lib_series + dl_series, dismissed),
+        "total_transcoded_episodes": sum(i.get("total_episodes", 0) for i in tr_series),
+        "duplicate_movies":         _find_duplicates(lib_movies + dl_movies + tr_movies, dismissed),
+        "duplicate_series":         _find_duplicates(lib_series + dl_series + tr_series, dismissed),
         "missing_episodes": [
             {
                 "title":   i["title"],
                 "path":    i["path"],
                 "missing": i["missing_episodes"],
             }
-            for i in lib_series + dl_series
+            for i in lib_series + dl_series + tr_series
             if i.get("missing_episodes")
         ],
     }
@@ -350,17 +373,17 @@ def _load_all_caches(config: Dict[str, Any]) -> bool:
     """Load cache files for configured locations. Returns True if at least one was loaded."""
     if not CACHE_DIR.exists():
         return False
-    paths = [p for p in config.get("locations", []) + config.get("downloads", []) if p]
-    expected = {_cache_file_for(p) for p in paths}
+    types = {_cache_file_for(p): t for p, t in _location_entries(config)}
     files = sorted(CACHE_DIR.glob("*.json"))
     if not files:
         return False
     lib: List[Dict] = []
     dl:  List[Dict] = []
+    tr:  List[Dict] = []
     scan_times: List[str] = []
     loaded = 0
     for cf in files:
-        if cf not in expected:
+        if cf not in types:
             log.info("Ignoring stale cache %s — no matching configured location.", cf.name)
             continue
         try:
@@ -369,10 +392,8 @@ def _load_all_caches(config: Dict[str, Any]) -> bool:
                 continue
             root = payload.get("path", "")
             loaded_items = [_item_from_cache(i, root) for i in payload["items"]]
-            if payload.get("location_type") == "download":
-                dl.extend(loaded_items)
-            else:
-                lib.extend(loaded_items)
+            # The configured role wins over the cached one (a folder may have been reassigned)
+            {"download": dl, "transcoded": tr}.get(types[cf], lib).extend(loaded_items)
             if payload.get("last_scan"):
                 scan_times.append(payload["last_scan"])
             loaded += 1
@@ -380,14 +401,15 @@ def _load_all_caches(config: Dict[str, Any]) -> bool:
             log.warning("Could not load cache %s: %s", cf.name, exc)
     if loaded == 0:
         return False
-    status = _compute_status(lib, dl)
+    status = _compute_status(lib, dl, tr)
     with _lock:
-        _state["library"]   = lib
-        _state["downloads"] = dl
-        _state["last_scan"] = max(scan_times) if scan_times else None
-        _state["status"]    = status
-    log.info("Loaded %d cache file(s): %d library + %d download item(s)",
-             loaded, len(lib), len(dl))
+        _state["library"]    = lib
+        _state["downloads"]  = dl
+        _state["transcoded"] = tr
+        _state["last_scan"]  = max(scan_times) if scan_times else None
+        _state["status"]     = status
+    log.info("Loaded %d cache file(s): %d library + %d download + %d transcoded item(s)",
+             loaded, len(lib), len(dl), len(tr))
     return True
 
 
@@ -397,7 +419,7 @@ def _all_locations_cached(config: Dict[str, Any]) -> bool:
     Unreachable paths (offline drives) are ignored — a rescan cannot produce
     a cache for them anyway, so requiring one would force a scan on every startup.
     """
-    paths = [p for p in config.get("locations", []) + config.get("downloads", []) if p]
+    paths = [p for p, _ in _location_entries(config)]
     if not paths:
         return False
     missing = [p for p in paths if Path(p).is_dir() and not _cache_file_for(p).exists()]
@@ -428,12 +450,7 @@ def run_scan(_ignored_config: Any = None) -> None:
         scan_time = datetime.now().isoformat()
 
         loc_entries: List[Dict[str, Any]] = []
-        for p, loc_type in (
-            [(p, "library") for p in config.get("locations", [])]
-            + [(p, "download") for p in config.get("downloads", [])]
-        ):
-            if not p:
-                continue
+        for p, loc_type in _location_entries(config):
             loc_entries.append({
                 "path":          p,
                 "location_type": loc_type,
@@ -445,6 +462,8 @@ def run_scan(_ignored_config: Any = None) -> None:
 
         lib: List[Dict[str, Any]] = []
         dl:  List[Dict[str, Any]] = []
+        tr:  List[Dict[str, Any]] = []
+        buckets = {"library": lib, "download": dl, "transcoded": tr}
         all_paths = [e["path"] for e in loc_entries]
         for entry in loc_entries:
             if entry["status"] == "missing":
@@ -458,14 +477,15 @@ def run_scan(_ignored_config: Any = None) -> None:
             with _lock:
                 entry["status"] = "done"
                 entry["items"]  = len(location_items)
-            (lib if entry["location_type"] == "library" else dl).extend(location_items)
+            buckets[entry["location_type"]].extend(location_items)
             _save_location_cache(p, entry["location_type"], location_items, scan_time)
 
-        status = _compute_status(lib, dl)
+        status = _compute_status(lib, dl, tr)
 
         with _lock:
-            _state["library"]   = lib
-            _state["downloads"] = dl
+            _state["library"]    = lib
+            _state["downloads"]  = dl
+            _state["transcoded"] = tr
             _state["last_scan"] = scan_time
             _state["status"]    = status
 
@@ -481,3 +501,30 @@ def run_scan(_ignored_config: Any = None) -> None:
             _state["current_path"] = None
             if _state["scan_info"]:
                 _state["scan_info"]["finished"] = datetime.now().isoformat()
+
+
+def refresh_transcoded() -> None:
+    """Rescan only the transcode output folder (after a job) and recompute status."""
+    config = load_config()
+    root = safe_transcoded_root(config)
+    with _lock:
+        if _state["scanning"]:
+            log.info("Full scan in progress — skipping transcoded-folder refresh.")
+            return
+    items: List[Dict[str, Any]] = []
+    if root and Path(root).is_dir():
+        all_paths = [p for p, _ in _location_entries(config)]
+        items = scan_path(Path(root), "transcoded", _nested_locations(root, all_paths))
+        _save_location_cache(root, "transcoded", items, datetime.now().isoformat())
+    with _lock:
+        _state["transcoded"] = items
+    recompute_status()
+
+
+def recompute_status() -> None:
+    """Recompute counts and duplicates from the in-memory item lists (no disk access)."""
+    with _lock:
+        lib, dl, tr = list(_state["library"]), list(_state["downloads"]), list(_state["transcoded"])
+    status = _compute_status(lib, dl, tr)
+    with _lock:
+        _state["status"] = status

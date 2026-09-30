@@ -3,7 +3,25 @@ downloads:
 - D:\Downloaded\Netflix
 - D:\Downloaded\Apple TV
 - D:\Downloaded\Disney+
+local_shares: {}
 locations:
 - M:\Movies
-- R:\Series
+- n:\
 - M:\Movies\Itunes
+server_mode: false
+transcode:
+  audio_languages:
+  - eng
+  audio_prefer: first
+  audio_reject_words:
+  - description
+  - descriptive
+  - described
+  - commentary
+  - sdh
+  - visual
+  encoder: hevc_amf
+  ffmpeg_path: d:\tools\ffmpeg\bin\ffmpeg.exe
+  ffprobe_path: d:\tools\ffmpeg\bin\ffprobe.exe
+  output_root: d:\transcoded
+  qp: 22

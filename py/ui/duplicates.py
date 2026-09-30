@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from .settings import NOT_DUP_PATH, _clean_title, log
-from .state import _lock, _state
+from .state import _lock, _state, all_items
 
 
 def _load_not_duplicates() -> List[List[str]]:
@@ -70,7 +70,11 @@ def _find_duplicates(items: List[Dict[str, Any]], dismissed: Optional[set] = Non
             if any(tuple(sorted((i["id"], o["id"]))) not in dismissed for o in v if o["id"] != i["id"])
         ]
         if len(kept) > 1:
-            groups.append({"title": k, "items": kept})
+            groups.append({
+                "title":      k,
+                "items":      kept,
+                "transcoded": any(i["location"] == "transcoded" for i in kept),
+            })
     return groups
 
 
@@ -78,7 +82,7 @@ def recompute_duplicates() -> None:
     """Refresh duplicate lists in status from in-memory items (no rescan)."""
     dismissed = _dismissed_pairs()
     with _lock:
-        items  = _state["library"] + _state["downloads"]
+        items  = all_items()
         movies = [i for i in items if i["type"] == "movie"]
         series = [i for i in items if i["type"] == "series"]
         if _state["status"]:

@@ -20,17 +20,42 @@ from .fileops import delete_items, file_info, move_items, play_item, rename_item
 from .models import (
     ConfigBody,
     DeleteBody,
+    EncoderTestBody,
     MoveBody,
     NfoCopyBody,
     NotDuplicateBody,
     NotDupRemoveBody,
     PlayBody,
     RenameBody,
+    ReorganizeProposalsBody,
+    TranscodeProbeBody,
+    TranscodeStartBody,
+    TranscodeToolsBody,
+    UseTranscodedBody,
 )
 from .nfo import copy_nfo, read_nfo
+from .reorganize import analyse as reorganize_analyse
 from .scanner import _all_locations_cached, _load_all_caches, run_scan
-from .settings import STATIC_DIR, TEMPLATES_DIR, _write_config, load_config, log
-from .state import _lock, _state
+from .settings import (
+    STATIC_DIR,
+    TEMPLATES_DIR,
+    _write_config,
+    load_config,
+    log,
+    naming_error,
+    transcoded_root_conflict,
+)
+from .state import _lock, _state, all_items
+from .transcode import (
+    detect_tools,
+    job_log,
+    job_status,
+    kill_job,
+    probe_items,
+    start_job,
+    test_encoders,
+    use_transcoded,
+)
 
 
 # ── FastAPI ────────────────────────────────────────────────────────────────────
@@ -73,8 +98,37 @@ def api_get_config():
 
 @app.post("/api/config")
 def api_save_config(body: ConfigBody):
-    _write_config({"locations": body.locations, "downloads": body.downloads})
-    return {"ok": True}
+    try:
+        cfg = load_config()
+    except SystemExit:
+        raise HTTPException(500, "Config file is invalid. Check server logs for details.")
+    cfg["locations"] = body.locations
+    cfg["downloads"] = body.downloads
+    if body.transcode is not None:
+        cfg["transcode"] = body.transcode.model_dump()
+    if body.naming is not None:
+        naming = body.naming.model_dump()
+        err = naming_error(naming)
+        if err:
+            raise HTTPException(400, err)
+        cfg["naming"] = naming
+    if body.server_mode is not None:
+        cfg["server_mode"] = body.server_mode
+    if body.local_shares is not None:
+        cfg["local_shares"] = {k.strip(): v.strip() for k, v in body.local_shares.items()
+                               if k.strip() and v.strip()}
+    conflict = transcoded_root_conflict(cfg)
+    if conflict:
+        raise HTTPException(400, conflict)
+    _write_config(cfg)
+    tc = cfg["transcode"]
+    log.info("Config saved: %d location(s), %d download(s), server_mode=%s, %d local share(s); "
+             "transcode ffmpeg=%r ffprobe=%r output=%r",
+             len(cfg["locations"]), len(cfg["downloads"]),
+             cfg.get("server_mode"), len(cfg.get("local_shares") or {}),
+             tc.get("ffmpeg_path"), tc.get("ffprobe_path"), tc.get("output_root"))
+    return {"ok": True, "transcode": tc, "naming": cfg["naming"],
+            "server_mode": cfg["server_mode"], "local_shares": cfg["local_shares"]}
 
 
 # ── Scan API ───────────────────────────────────────────────────────────────────
@@ -104,7 +158,7 @@ def api_library(
     q: Optional[str] = None,
 ):
     with _lock:
-        items: List[Dict[str, Any]] = list(_state["library"]) + list(_state["downloads"])
+        items: List[Dict[str, Any]] = list(all_items())
     if type:
         items = [i for i in items if i["type"] == type]
     if location:
@@ -151,6 +205,12 @@ def api_delete(body: DeleteBody):
     return delete_items(body.item_ids, body.dry_run)
 
 
+# ── Reorganize API ─────────────────────────────────────────────────────────────
+@app.post("/api/reorganize/proposals")
+def api_reorganize_proposals(body: ReorganizeProposalsBody):
+    return reorganize_analyse(body.item_ids)
+
+
 # ── NFO API ────────────────────────────────────────────────────────────────────
 @app.get("/api/nfo")
 def api_nfo(item_id: str):
@@ -177,3 +237,44 @@ def api_list_not_duplicates():
 @app.post("/api/not-duplicates/remove")
 def api_remove_not_duplicates(body: NotDupRemoveBody):
     return remove_not_duplicate_pairs(body.pairs)
+
+
+# ── Transcode API ────────────────────────────────────────────────────────────────
+@app.post("/api/transcode/tools")
+def api_transcode_tools(body: TranscodeToolsBody):
+    return detect_tools(body.model_dump())
+
+
+@app.post("/api/transcode/test-encoder")
+def api_transcode_test_encoder(body: EncoderTestBody):
+    return test_encoders(body.ffmpeg_path, body.encoders, body.qp)
+
+
+@app.post("/api/transcode/probe")
+def api_transcode_probe(body: TranscodeProbeBody):
+    return probe_items(body.item_ids)
+
+
+@app.post("/api/transcode/start")
+def api_transcode_start(body: TranscodeStartBody):
+    return start_job([f.model_dump() for f in body.files])
+
+
+@app.post("/api/transcode/kill")
+def api_transcode_kill():
+    return kill_job()
+
+
+@app.get("/api/transcode/status")
+def api_transcode_status():
+    return job_status()
+
+
+@app.get("/api/transcode/log")
+def api_transcode_log(since: int = 0):
+    return job_log(since)
+
+
+@app.post("/api/use-transcoded")
+def api_use_transcoded(body: UseTranscodedBody):
+    return use_transcoded(body.original_id, body.transcoded_id, body.dry_run)

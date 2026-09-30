@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from .settings import log
-from .state import _lock, _state, resolve_item
+from .state import _lock, all_items, resolve_item
 
 
 def parse_nfo(nfo_path: Path) -> Dict[str, Any]:
@@ -97,7 +97,7 @@ def _merge_nfo_fields(src_nfo: Path, dst_nfo: Path, fields: List[str], default_r
         try:
             dst_root = ET.parse(dst_nfo).getroot()
         except ET.ParseError:
-            dst_root = None   # unparsable target → start fresh
+            raise HTTPException(400, f"Target NFO is not valid XML — fix it or copy the whole file instead: {dst_nfo}")
     if dst_root is None:
         dst_root = ET.Element(default_root)
     for field in fields:
@@ -173,7 +173,7 @@ def copy_nfo(source_id: str, target_id: str, fields: Optional[List[str]]) -> Dic
     # Update in-memory item so the UI reflects the change immediately
     nfo = parse_nfo(dst_nfo)
     with _lock:
-        for i in _state["library"] + _state["downloads"]:
+        for i in all_items():
             if i["id"] == dst_item["id"]:
                 i["nfo"] = nfo
                 i["nfo_quality"] = _nfo_quality(nfo)
