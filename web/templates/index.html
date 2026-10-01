@@ -413,9 +413,10 @@
               </div>
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="nm-resolve-nfos">
-                <label class="form-check-label" for="nm-resolve-nfos">Suggest a fix when a movie has several NFO files</label>
+                <label class="form-check-label" for="nm-resolve-nfos">Suggest fixing NFO file names</label>
                 <div class="form-text text-muted mt-0">
-                  A single NFO — <code>movie.nfo</code> (written by Jellyfin) or named after the video — is always left alone.
+                  A single NFO named <code>movie.nfo</code> (written by Jellyfin) or after the video is always left alone.
+                  A single NFO with any other name is ignored by Jellyfin — it is suggested for renaming to the video's name.
                   When a movie has several NFOs, the dialog lets you choose: <em>use the best</em> (renamed to the video's
                   name, the others deleted), <em>delete all</em> (Jellyfin recreates it on its next scan), or
                   <em>leave as is</em> (the default). NFOs with the video's name always follow a renamed video.

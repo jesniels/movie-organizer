@@ -277,7 +277,7 @@ def _stale(folder_files: List[str], item: Dict[str, Any]) -> Optional[str]:
 def _new_proposal(item: Dict[str, Any], kind: str, title: str, year: str, source: str) -> Dict[str, Any]:
     return {"item_id": item["id"], "type": item["type"], "kind": kind, "location": item.get("location"),
             "path": item["id"], "title": title, "year": year, "source": source,
-            "folder": None, "file": None, "move": [], "images": [], "nfos": None, "sanitize": []}
+            "folder": None, "file": None, "move": [], "images": [], "nfo": None, "nfos": None, "sanitize": []}
 
 
 def _folder_op(folder: str, new_name: str, planned: Dict[str, str], item_id: str) -> Dict[str, Any]:
@@ -374,6 +374,15 @@ def _analyse_movie_folder(item: Dict[str, Any], naming: Dict[str, Any], planned:
             nfos = [n for n in top if n.lower().endswith(".nfo")]
             if len(nfos) > 1:
                 prop["nfos"] = _nfo_choice(folder, nfos, old_stem, final_stem)
+            elif nfos:
+                n = nfos[0]
+                follows_video = prop["file"] and any(f["from"] == n for f in prop["file"]["follows"])
+                # Jellyfin only reads movie.nfo or <video>.nfo — a lone NFO with another name is ignored
+                if not follows_video and n.lower() not in ("movie.nfo", (old_stem + ".nfo").lower()):
+                    src, dst = os.path.join(folder, n), os.path.join(folder, final_stem + ".nfo")
+                    prop["nfo"] = {"from": n, "to": final_stem + ".nfo", "conflict": _target_conflict(src, dst, planned)}
+                    planned.setdefault(_key(dst), item["id"])
+                    covered.add(_key(src))
     if naming.get("sanitize_names"):
         prop["sanitize"] = _sanitize_entries(dirs + [folder], files, covered, item["id"], planned, blocked)
     return prop
@@ -424,7 +433,7 @@ def build_proposals(config: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict
             prop = _analyse_loose(item, naming, planned, blocked)
         else:
             prop = _analyse_movie_folder(item, naming, planned, blocked)
-        if prop["folder"] or prop["file"] or prop["nfos"] or prop["sanitize"]:
+        if prop["folder"] or prop["file"] or prop["nfo"] or prop["nfos"] or prop["sanitize"]:
             proposals.append(prop)
         elif len(blocked) == n_blocked:
             compliant += 1

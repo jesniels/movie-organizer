@@ -35,7 +35,7 @@ naming:
   series_folder: "{title} ({year})"   # series folder name (Jellyfin recommendation; was "{title}")
   file_equals_folder: true            # movie_file follows movie_folder; default for the dialog's per-row "= folder" toggle
   rename_files:   true                # suggest video file renames at all
-  resolve_nfos:   true                # suggest a fix when a movie folder has several NFO files
+  resolve_nfos:   true                # suggest fixing NFO names (lone NFO with another name; several NFOs)
   delete_images:  true                # suggest deleting jpg/jpeg/png when foldering a Loose File (Jellyfin regenerates)
   sanitize_names: true                # suggest sanitizing illegal names of the analysed items' files/folders
 ```
@@ -68,9 +68,9 @@ Name comparisons are case-insensitive (Windows), and compare against the format 
 | 1 | **Loose File** (id ≠ path) | Create `<movie_folder>` next to the file and move the video + its exact-stem sidecars into it (stem rules identical to the CLI organizer, see R-09). The video is renamed to `<movie_file>` when `rename_files`; sidecars (incl. `<video>.nfo`) follow the new stem. Exact-stem images are suggested for deletion when `delete_images`, otherwise moved along. Illegal characters in the moved names are sanitized as part of the move (visible in the move list). Several loose files that would get the same folder name (e.g. Part 1 / Part 2) each get their own suggestion; the second one is a **Conflict**. |
 | 2 | Folder name ≠ `movie_folder` format | Rename the folder. |
 | 3 | Video file stem ≠ `movie_file` format (single-video movies only, when `rename_files`) | Rename the video file; exact-stem sidecars (incl. `<video>.nfo`) follow, keeping their suffix chain (`Old.en.srt` → `New.en.srt`). |
-| 4 | Movie folder has **several** `.nfo` files at top level (when `resolve_nfos`) | Offer a choice, default **leave as is**: *use the best* (rename the best NFO to `<video>.nfo`, delete the others), *delete all* (Jellyfin recreates it on its next scan), *leave as is* (resolve manually). Best = highest quality (full > partial > none), then most filled fields; on a tie *use the best* is not offered. |
+| 4 | (when `resolve_nfos`) **a)** exactly one top-level `.nfo`, named neither `movie.nfo` nor `<video>.nfo` (Jellyfin ignores it) — **b)** several top-level `.nfo` files | **a)** Rename it to `<video>.nfo` (the video's name after any check-3 rename). **b)** Offer a choice, default **leave as is**: *use the best* (rename the best NFO to `<video>.nfo`, delete the others), *delete all* (Jellyfin recreates it on its next scan), *leave as is* (resolve manually). Best = highest quality (full > partial > none), then most filled fields; on a tie *use the best* is not offered. |
 
-**NFO naming rule:** NFOs are named after the video (`<video>.nfo`). Reorganize **never creates or suggests `movie.nfo`**. A single existing NFO — `movie.nfo` (written by Jellyfin) or `<video>.nfo` — is left alone; only several NFOs lead to a suggestion (check 4).
+**NFO naming rule:** NFOs are named after the video (`<video>.nfo`). Reorganize **never creates or suggests `movie.nfo`**. A single existing NFO named `movie.nfo` (written by Jellyfin) or `<video>.nfo` is left alone; a single NFO with any other name gets a rename suggestion (4a); several NFOs get the choice (4b).
 
 A single item can combine 2+3+4 into one Proposal. Multi-video movie folders get folder renames only — file renames are **Blocked** for them (extras/parts, see R-15).
 
@@ -129,7 +129,8 @@ Shown in the dialog under a collapsed "Cannot propose" section, each with its re
                   "follows": [{ "from": "Dune.2021.2160p.en.srt", "to": "Dune (2021).en.srt" }] },
       "move":   [{ "from": "Dune.2021.2160p.mkv", "to": "Dune (2021).mkv" }, …],   // loose files only
       "images": ["Dune.2021.2160p-poster.jpg"],          // suggested for deletion (delete_images)
-      "nfos":   null,                                    // or the check-4 choice:
+      "nfo":    null,                                    // 4a: { "from": "Heat.1995.1080p.nfo", "to": "Heat (1995).nfo", "conflict": false }
+      "nfos":   null,                                    // or the 4b choice:
       // { "files": [{name, after, quality, fields}], "best": "movie.nfo"|null, "target": "<video>.nfo",
       //   "options": ["use_best", "delete_all", "leave"], "default": "leave", "detail": null }
       "sanitize": [
@@ -183,7 +184,7 @@ Reorganize — 14 proposals, 3 blocked, 412 compliant          [location filter 
 | Endpoint | Purpose |
 | :--- | :--- |
 | `POST /api/reorganize/proposals` | `{ item_ids }` — the items shown by the filters. Build and return the analysis (above). Read-only; 409 while a scan is running. |
-| `POST /api/reorganize` | `{ changes: [{item_id, folder_name, file_name, apply_folder, apply_file, nfo_action: "use_best"\|"delete_all"\|"leave", delete_images, sanitize: [paths]}], dry_run }` (`item_id` null for “Parent folders”) → per-item results. Names are re-validated and conflict-checked server-side at execute time, and sanitize targets are recomputed server-side from the path — the client's view is advisory only. |
+| `POST /api/reorganize` | `{ changes: [{item_id, folder_name, file_name, apply_folder, apply_file, apply_nfo, nfo_action: "use_best"\|"delete_all"\|"leave", delete_images, sanitize: [paths]}], dry_run }` (`item_id` null for “Parent folders”) → per-item results. Names are re-validated and conflict-checked server-side at execute time, and sanitize targets are recomputed server-side from the path — the client's view is advisory only. |
 
 Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `app.py`, request models in `models.py` — matching the existing package split.
 
@@ -201,7 +202,7 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 | Stale cache | Before executing, the item's folder is re-listed; unknown video files ⇒ refuse with "rescan first" (R-06). |
 | Series | Folder rename to the format only — episode files and season folders are never renamed to a format (R-05); they are only sanitized, and sanitizing must leave the `SxxEyy` token identical (verified server-side). |
 | Sanitize | Only the Sanitize rule is applied — the server recomputes the target from the current name, never trusts a client-supplied name. Refuse when the result is empty or the target exists. Sidecars follow via the exact-stem rule. Deepest paths first. |
-| NFOs | Never renames to or creates `movie.nfo`; a single NFO is never touched. With several NFOs, *use the best* renames the best to `<video>.nfo` and deletes the others, *delete all* deletes them — both only after explicit selection; re-checked at execute time (same files as analysed, else refuse). |
+| NFOs | Never renames to or creates `movie.nfo`; a single `movie.nfo` / `<video>.nfo` is never touched; a single NFO with another name is only renamed to `<video>.nfo` after explicit selection. With several NFOs, *use the best* renames the best to `<video>.nfo` and deletes the others, *delete all* deletes them — both only after explicit selection; re-checked at execute time (same files as analysed, else refuse). |
 | Scope | Only paths inside configured locations/downloads are ever touched. |
 | Dry run | Default on; the execute endpoint honours it per request, not per session. |
 | Image deletion | Only images matched by the exact-stem rule of the item being foldered — by design (Jellyfin regenerates), same as the CLI. |
@@ -244,3 +245,4 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 14. **Series default format is `{title} ({year})`** (Jellyfin recommendation).
 15. **Own name parser** (`reorganize.parse_name`) for items without NFO values, understanding scene names.
 16. **Loose files in the same folder that map to the same movie folder** (e.g. parts) each get their own suggestion — no special blocking; the second becomes a conflict.
+17. **A lone NFO with neither `movie.nfo` nor the video's name** (Jellyfin ignores it) gets a rename suggestion to `<video>.nfo` (2026-10-01; amends #13).

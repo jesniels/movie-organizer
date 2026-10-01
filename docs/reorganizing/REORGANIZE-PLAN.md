@@ -47,7 +47,7 @@ Each phase is independently shippable; the feature is inert until Phase 5 expose
 - Scope = the item ids sent by the dialog = the items shown by the left-bar filters (decision #12).
 - Checks 1–5 per design; title/year per field NFO → `parse_name` (folder name, then video stem; decision #15); case-insensitive comparison against the expanded format.
 - `related_files(video, siblings)` — the one **exact-stem** helper (stem, `stem.`, `stem-`; other videos excluded) for Organize to reuse.
-- Check 4 — several top-level NFOs → `nfos` choice (`use_best` only when a unique best exists, default `leave`); a single NFO is never touched (decision #13).
+- Check 4 — a lone NFO named neither `movie.nfo` nor `<video>.nfo` → `nfo` rename suggestion to `<video>.nfo` (decision #17); several top-level NFOs → `nfos` choice (`use_best` only when a unique best exists, default `leave`); a lone `movie.nfo` / `<video>.nfo` is never touched (decision #13).
 - Conflict detection: fresh disk peek plus a shared `planned` map so two suggestions never target the same path; folder conflicts get a `suggested` “(1)” name.
 - Blocked reasons: `no_year`, `multi_video`, `stale_cache` (blocks checks 1–5 only), `sanitize_empty`, `episode_changed`.
 - Loose Files: operate on the file (`id`), never `item["path"]`.
@@ -68,7 +68,7 @@ On Windows `Path.is_dir()` strips a trailing space/dot and returns False, so `_s
 - Every destination is checked with `dst.exists()` before any `shutil.move`/`Path.rename` (R-03 rule). Never overwrite; a mid-item failure stops that item and reports it, already-finished items stay (no rollback).
 - **Sanitize execution:** the server recomputes each target from the current on-disk name with `sanitize_component` (never a client-supplied name), re-checks conflict/empty/`SxxEyy`, renames deepest paths first, then the item's format renames. On Windows the source path uses the `\\?\` extended prefix (names ending in a dot/space are unreachable otherwise).
 - In-memory state update after a successful item (id/path/files/folder/raw_name), mirroring what move/rename already do, so the UI is consistent before the next scan.
-- **Models** (`models.py`): `ReorganizeChange` (`item_id: Optional` — null for “Parent folders”, `folder_name`, `file_name`, `apply_folder`, `apply_file`, `nfo_action: use_best|delete_all|leave = leave`, `delete_images`, `sanitize: List[str]` paths) and `ReorganizeBody` (`changes`, `dry_run: bool = True`). NFO actions re-check that the folder still holds exactly the analysed NFOs, else refuse.
+- **Models** (`models.py`): `ReorganizeChange` (`item_id: Optional` — null for “Parent folders”, `folder_name`, `file_name`, `apply_folder`, `apply_file`, `apply_nfo` (4a rename), `nfo_action: use_best|delete_all|leave = leave`, `delete_images`, `sanitize: List[str]` paths) and `ReorganizeBody` (`changes`, `dry_run: bool = True`). NFO actions re-check that the folder still holds exactly the analysed NFOs, else refuse.
 - **Route**: `POST /api/reorganize`.
 
 **Done when:** dry run reports exactly what execute then does; every guard in the design's safety table is enforced server-side and covered in Phase 6 verification.
@@ -131,3 +131,4 @@ On Windows `Path.is_dir()` strips a trailing space/dot and returns False, so `_s
 | 14 | Series default | **`{title} ({year})`** |
 | 15 | Titles without NFO | **Own parser** (`parse_name`) understanding scene names. |
 | 16 | Parts in one folder | **A sub-folder suggestion per file anyway**; the second one becomes a conflict. |
+| 17 | Lone NFO with another name (2026-10-01) | **Suggest renaming it to `<video>.nfo`** — Jellyfin ignores it otherwise. |

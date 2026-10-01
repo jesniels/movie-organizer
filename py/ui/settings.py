@@ -52,7 +52,7 @@ DEFAULT_NAMING: Dict[str, Any] = {
     "series_folder":      "{title} ({year})",
     "file_equals_folder": True,   # movie_file follows movie_folder; default for the dialog's per-row toggle
     "rename_files":       True,
-    "resolve_nfos":       True,   # suggest a fix when a movie has several NFO files
+    "resolve_nfos":       True,   # suggest fixing NFO names (lone NFO with another name, several NFOs)
     "delete_images":      True,
     "sanitize_names":     True,   # suggest sanitizing illegal names of files/folders in the analysed items
 }
