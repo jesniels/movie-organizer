@@ -124,3 +124,22 @@ class DeleteBody(BaseModel):
 
 class ReorganizeProposalsBody(BaseModel):
     item_ids: List[str]   # the items shown by the current left-bar filters
+
+
+class ReorganizeChange(BaseModel):
+    """The user's choices for one proposal row; everything else is recomputed server-side."""
+    item_id:       Optional[str] = None   # None → the “Parent folders” group (sanitize only)
+    folder_name:   Optional[str] = None   # edited folder name; None → the analysed one
+    file_name:     Optional[str] = None   # edited video stem (extension kept); None → the analysed one
+    apply_folder:  bool = False
+    apply_file:    bool = False
+    apply_nfo:     bool = False           # check 4a: rename the lone NFO to <video>.nfo
+    nfo_action:    Literal["use_best", "delete_all", "leave"] = "leave"
+    nfo_files:     List[str] = []         # the NFO names the user saw (re-checked before any NFO action)
+    delete_images: bool = False
+    sanitize:      List[str] = []         # paths of the selected sanitize entries
+
+
+class ReorganizeBody(BaseModel):
+    changes: List[ReorganizeChange]
+    dry_run: bool = True

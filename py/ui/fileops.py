@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -90,11 +91,66 @@ def _item_target(item: Dict[str, Any]) -> Path:
     return Path(item["id"]) if item["id"] != item["path"] else Path(item["path"])
 
 
+def _write_probe(folder: Path) -> Optional[str]:
+    """Check that a file can really be created and removed in ``folder``.
+
+    ``os.access`` is unreliable on Windows (ignores ACLs and share permissions),
+    so an empty temp file is created and deleted. Returns an error message, or
+    None when the folder is writable.
+
+    Not ``tempfile.mkstemp``: on Windows it retries "forever" on PermissionError
+    when ``os.access`` claims the folder is writable, hanging the request.
+    """
+    probe = folder / f".movie-organizer-write-test-{secrets.token_hex(8)}.tmp"
+    try:
+        fd = os.open(str(probe), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+        os.unlink(str(probe))
+        return None
+    except OSError as exc:
+        return f"Cannot write in {folder}: {exc.strerror or exc}"
+
+
+def _tree_size(path: Path) -> int:
+    """Total size in bytes of a file, or of all files below a folder."""
+    if path.is_file():
+        return path.stat().st_size
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
+def _fmt_size(n: int) -> str:
+    """Human-readable size, e.g. ``4.2 GB``."""
+    size = float(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
 def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dict[str, Any]]:
+    """Move items into ``target_base``; dry run and real run perform the same checks.
+
+    Checks per call: destination folder exists and is writable (real write probe).
+    Checks per item: source exists, its parent folder is writable (the source is
+    removed after a move), destination does not exist (also not twice within this
+    batch), not already in that folder, and enough free space for a cross-drive
+    move (which copies the data).
+    """
     if not target_base.strip():
         raise HTTPException(400, "target_base must not be empty")
-    if not Path(target_base).is_dir():
+    target = Path(target_base)
+    if not target.is_dir():
         raise HTTPException(400, f"Destination folder does not exist: {target_base}")
+    err = _write_probe(target)
+    if err:
+        raise HTTPException(400, err)
+
+    target_dev = target.stat().st_dev
+    free = shutil.disk_usage(str(target)).free
+    needed = 0                       # bytes a cross-drive move in this batch will copy
+    planned: set = set()             # destinations already claimed in this batch
+    probed: Dict[str, Optional[str]] = {}
 
     results = []
     for item_id in item_ids:
@@ -103,16 +159,44 @@ def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dic
             results.append({"id": item_id, "ok": False, "error": "Not found"})
             continue
         src = _item_target(item)
-        dst = Path(target_base) / src.name
+        dst = target / src.name
+        if not src.exists():
+            results.append({"id": item_id, "ok": False, "error": f"Source no longer exists (rescan): {src}"})
+            continue
         # shutil.move silently overwrites an existing file (copy fallback on Windows)
         if dst.exists():
             results.append({"id": item_id, "ok": False, "error": f"Destination already exists: {dst}"})
             continue
-        if _same_path(src.parent, Path(target_base)):
+        if _same_path(src.parent, target):
             results.append({"id": item_id, "ok": False, "error": "Item is already in that folder"})
             continue
+        dst_key = os.path.normcase(os.path.normpath(str(dst)))
+        if dst_key in planned:
+            results.append({"id": item_id, "ok": False,
+                            "error": f"Another selected item has the same name: {src.name}"})
+            continue
+        parent_key = os.path.normcase(str(src.parent))
+        if parent_key not in probed:
+            probed[parent_key] = _write_probe(src.parent)
+        if probed[parent_key]:
+            results.append({"id": item_id, "ok": False,
+                            "error": f"{probed[parent_key]} (needed to remove the source after moving)"})
+            continue
+        if src.is_file() and not os.access(str(src), os.W_OK):
+            results.append({"id": item_id, "ok": False, "error": f"Source file is read-only: {src}"})
+            continue
+        cross_drive = src.stat().st_dev != target_dev
+        size = _tree_size(src) if cross_drive else 0
+        if cross_drive and needed + size > free:
+            results.append({"id": item_id, "ok": False,
+                            "error": f"Not enough free space on destination: needs {_fmt_size(size)}, "
+                                     f"{_fmt_size(max(free - needed, 0))} left"})
+            continue
+        needed += size
+        planned.add(dst_key)
         if dry_run:
-            results.append({"id": item_id, "ok": True,  "dry_run": True, "from": str(src), "to": str(dst)})
+            results.append({"id": item_id, "ok": True,  "dry_run": True, "from": str(src), "to": str(dst),
+                            "cross_drive": cross_drive, "size": size})
         else:
             try:
                 shutil.move(str(src), str(dst))

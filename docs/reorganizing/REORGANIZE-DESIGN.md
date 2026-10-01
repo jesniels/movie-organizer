@@ -1,6 +1,6 @@
 # Reorganize — Feature Design
 
-Status: **Phase 1 (Naming Format settings) and Phase 2 (analysis, `py/ui/reorganize.py`) implemented 2026-09-29; execution and dialog not implemented.** Companion plan: [REORGANIZE-PLAN.md](REORGANIZE-PLAN.md)
+Status: **Phase 1 (Naming Format settings) and Phase 2 (analysis, `py/ui/reorganize.py`) implemented 2026-09-29; Phase 3 (execution, `POST /api/reorganize`) implemented 2026-10-01; dialog not implemented.** Companion plan: [REORGANIZE-PLAN.md](REORGANIZE-PLAN.md)
 
 > **Ground rule: Reorganize never changes anything on its own.** Settings and the analysis only decide what is *suggested*. A file or folder is renamed, moved or deleted only after the user selects that suggestion in the Reorganize Dialog and clicks **Do it** with dry run switched off.
 
@@ -185,7 +185,7 @@ Reorganize — 14 proposals, 3 blocked, 412 compliant          [location filter 
 | Endpoint | Purpose |
 | :--- | :--- |
 | `POST /api/reorganize/proposals` | `{ item_ids }` — the items shown by the filters. Build and return the analysis (above). Read-only; 409 while a scan is running. |
-| `POST /api/reorganize` | `{ changes: [{item_id, folder_name, file_name, apply_folder, apply_file, apply_nfo, nfo_action: "use_best"\|"delete_all"\|"leave", delete_images, sanitize: [paths]}], dry_run }` (`item_id` null for “Parent folders”) → per-item results. Names are re-validated and conflict-checked server-side at execute time, and sanitize targets are recomputed server-side from the path — the client's view is advisory only. |
+| `POST /api/reorganize` | `{ changes: [{item_id, folder_name, file_name, apply_folder, apply_file, apply_nfo, nfo_action: "use_best"\|"delete_all"\|"leave", nfo_files: [names], delete_images, sanitize: [paths]}], dry_run }` (`item_id` null for “Parent folders”) → `[{item_id, ok, dry_run, operations: [{op, from, to}], error}]`. 409 while a scan or transcode runs. The server **re-runs the analysis** for each item and takes only the user's choices (checkboxes, edited names, NFO action) from the request; move lists, sidecars, images, NFO targets and sanitize targets are recomputed, and a sanitize path is only accepted when the re-analysis produced it. Names are re-validated and conflict-checked server-side — the client's view is advisory only. In-memory state is **not** updated; the dialog prompts for a rescan. |
 
 Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `app.py`, request models in `models.py` — matching the existing package split.
 
@@ -202,7 +202,9 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 | Loose Files act on the file | Via `_item_target(item)` semantics (R-01/R-02) — never `item["path"]` for a Loose File. |
 | Stale cache | Before executing, the item's folder is re-listed; unknown video files ⇒ refuse with "rescan first" (R-06). |
 | Series | Folder rename to the format only — episode files and season folders are never renamed to a format (R-05); they are only sanitized, and sanitizing must leave the `SxxEyy` token identical (verified server-side). |
-| Sanitize | Only the Sanitize rule is applied — the server recomputes the target from the current name, never trusts a client-supplied name. Refuse when the result is empty or the target exists. Sidecars follow via the exact-stem rule. Deepest paths first. |
+| Sanitize | Only the Sanitize rule is applied — the server recomputes the target from the current name, never trusts a client-supplied name, and only accepts paths its own re-analysis produced. Refuse when the result is empty or the target exists. Sidecars follow via the exact-stem rule. Deepest paths first; parent folders after all items. |
+| Server re-analysis | At execute time the server re-runs the analysis per item; only the user's choices come from the client. A mismatch with what the user saw refuses that item. |
+| Concurrency | Execution is refused while a scan or a transcode runs. |
 | NFOs | Never renames to or creates `movie.nfo`; a single `movie.nfo` / `<video>.nfo` is never touched; a single NFO with another name is only renamed to `<video>.nfo` after explicit selection. With several NFOs, *use the best* renames the best to `<video>.nfo` and deletes the others, *delete all* deletes them — both only after explicit selection; re-checked at execute time (same files as analysed, else refuse). |
 | Scope | Only paths inside configured locations/downloads are ever touched. |
 | Dry run | Default on; the execute endpoint honours it per request, not per session. |
@@ -211,7 +213,7 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 ## Relationship to existing features
 
 - **Organize** ([organize.md](../organization/organize.md), not yet implemented) moves items *between* locations and also creates folders for Loose Files. Reorganize is the **in-place** counterpart. They share the folder-name derivation and conflict rules; a future Organize implementation should reuse `reorganize.py`'s name-building and validation helpers.
-- **Rename dialog** (existing) is the manual single-item tool; Reorganize is the bulk, format-driven version. Both must keep the R-04/R-05 guards. Reorganize reuses/extends `fileops.rename_item`'s planning logic rather than duplicating it.
+- **Rename dialog** (existing) is the manual single-item tool; Reorganize is the bulk, format-driven version. Both must keep the R-04/R-05 guards. Reorganize follows `fileops.rename_item`'s plan-then-execute pattern and shares its validator (`valid_component`), but does not call it (it raises HTTP errors, stops at the first problem and lacks `\\?\` support).
 - **CLI `movie-organizer.py`** stays unchanged and stdlib-only. The UI feature replicates its foldering behaviour (folder from stem/NFO, image deletion, skip-on-existing) with the additions of format compliance, folder/file renaming and sanitizing. **Difference:** the CLI renames the NFO to `movie.nfo`; Reorganize never does — NFOs keep the video's name (decision #13).
 
 ## Out of scope (v1)
@@ -234,7 +236,7 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 5. **Illegal characters in titles are sanitized**, not blocked: `:` → ` - `, other illegal characters dropped, trailing dots/spaces stripped.
 6. **One single-component validator** (`settings.valid_component`) for Rename and Reorganize — Rename became stricter accordingly.
 7. **`file_equals_folder` is a config key** (default `true`) and the default for the dialog's per-row “= folder” toggle, which can be overridden per row.
-8. **Sanitize check covers every file and folder** in the library locations and download folders — including episodes, season folders, sidecars and extras — with an “Other files” group for entries outside scanned items. Switch: `sanitize_names` (default `true`), explained in the Settings Naming tab.
+8. **Sanitize check covers every file and folder** in the library locations and download folders — including episodes, season folders, sidecars and extras (the “Other files” group originally planned here was dropped by decision 12). Switch: `sanitize_names` (default `true`), explained in the Settings Naming tab.
 9. **One Sanitize rule everywhere** — exactly decision 5 (`:` → ` - `, other illegal characters dropped, trailing dots/spaces stripped), for titles and existing names alike; no extra normalisation (no whitespace collapsing). For files it applies to the stem, so the extension is kept.
 10. **Video sidecars follow a sanitized video** (exact-stem rule) so Jellyfin keeps matching subtitles/NFOs.
 
@@ -248,3 +250,7 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 16. **Loose files in the same folder that map to the same movie folder** (e.g. parts) each get their own suggestion — no special blocking; the second becomes a conflict.
 17. **A lone NFO with neither `movie.nfo` nor the video's name** (Jellyfin ignores it) gets a rename suggestion to `<video>.nfo` (2026-10-01; amends #13).
 18. **An NFO named `movie.nfo` or `<video>.nfo` is never renamed** — it works for Jellyfin. Applies to *use the best* too: the best only gets the video's name when it has another name (2026-10-01; amends #13).
+
+## Decisions (2026-10-01, Phase 3 readiness review)
+
+19–25 are recorded in the [plan](REORGANIZE-PLAN.md#decisions-confirmed-2026-10-01-phase-3-readiness-review): no in-memory state update (rescan instead; not-duplicate marks follow), server re-analysis at execute time with `nfo_files` in the request, only server-produced sanitize paths accepted, parent folders last, refusal during scan/transcode, `rename_item` pattern not call, case-only renames allowed, and the result shape.

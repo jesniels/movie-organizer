@@ -3,11 +3,21 @@ downloads:
 - D:\Downloaded\Netflix
 - D:\Downloaded\Apple TV
 - D:\Downloaded\Disney+
+last_move_target: M:\Movies
 local_shares: {}
 locations:
 - M:\Movies
 - n:\
 - M:\Movies\Itunes
+naming:
+  delete_images: true
+  file_equals_folder: true
+  movie_file: '{title} ({year})'
+  movie_folder: '{title} ({year})'
+  rename_files: true
+  resolve_nfos: true
+  sanitize_names: true
+  series_folder: '{title} ({year})'
 server_mode: false
 transcode:
   audio_languages:

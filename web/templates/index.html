@@ -6,7 +6,7 @@
   <title>Movie Organizer</title>
   <link rel="stylesheet" href="/static/bootstrap.min.css">
   <link rel="stylesheet" href="/static/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v={{ ver['app.css'] }}">
 </head>
 <body>
 
@@ -541,10 +541,22 @@
               <i class="bi bi-eye me-1"></i>Dry run — preview only, no files moved
             </label>
           </div>
+          <div id="move-progress" class="mt-3 d-none">
+            <div class="alert alert-warning py-2 small mb-2">
+              <i class="bi bi-hourglass-split me-1"></i>
+              <strong>Moving files — please wait.</strong>
+              Do not close this window. Moves between drives copy the data and can take several minutes per item.
+            </div>
+            <div class="progress mb-1" style="height:20px">
+              <div id="move-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning text-dark"
+                   role="progressbar" style="width:0%">0 / 0</div>
+            </div>
+            <div id="move-progress-text" class="small text-muted text-truncate"></div>
+          </div>
         </div>
         <div class="modal-footer border-secondary">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-warning" onclick="confirmMove()">
+          <button type="button" class="btn btn-secondary" id="move-cancel-btn" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-warning" id="move-confirm-btn" onclick="confirmMove()">
             <i class="bi bi-folder-symlink me-1"></i>Move
           </button>
         </div>
@@ -706,16 +718,17 @@
       <div class="modal-content bg-dark">
         <div class="modal-header border-secondary">
           <h5 class="modal-title text-info">
-            <i class="bi bi-eye me-2"></i>Dry Run Result
+            <i class="bi bi-eye me-2"></i><span id="dryrun-title">Dry Run Result</span>
           </h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
+          <div id="dryrun-status" class="alert py-2 d-none"></div>
           <pre id="dryrun-content" class="small text-light bg-black rounded p-3"
                style="max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
         </div>
         <div class="modal-footer border-secondary">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-secondary" id="dryrun-close-btn" data-bs-dismiss="modal">Close</button>
         </div>
       </div>
     </div>
@@ -845,6 +858,6 @@
   </div>
 
   <script src="/static/bootstrap.bundle.min.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v={{ ver['app.js'] }}"></script>
 </body>
 </html>

@@ -64,6 +64,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "local_shares": {},
     "transcode": dict(DEFAULT_TRANSCODE),
     "naming": dict(DEFAULT_NAMING),
+    "last_move_target": "",   # last configured path used by Move (preselected in the dialog)
 }
 
 

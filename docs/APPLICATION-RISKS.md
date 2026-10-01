@@ -46,6 +46,8 @@ Last full audit: 2026-09-27.
 - **What happened:** on Windows, `shutil.move` falls back to copy+delete when the target file exists, and the copy **replaces** the target without warning. (Introduced by the R-02 fix, found in the audit.)
 - **Guard:** Move refuses if the destination exists, if the destination folder does not exist, or if the item is already in that folder.
 - **Rule for new code:** never call `shutil.move` without checking `dst.exists()` first.
+- **Pre-checks (2026-10-01), same for dry run and real run:** the destination folder must be writable (`_write_probe` creates and deletes an empty `.movie-organizer-write-test-*.tmp` — `os.access` ignores ACLs/share rights on Windows; `tempfile.mkstemp` is not used because it loops on `PermissionError` there), the source's parent folder must be writable (the source is removed after the copy), a source file must not be read-only, two selected items may not share a destination name, and a cross-drive move needs enough free space for the whole batch. A failed check skips that item before anything is copied.
+- **UI:** the dry-run result says clearly whether everything can be moved and returns to the Move dialog. A real move runs one item per request with a progress bar; the dialog and page cannot be closed while it runs, and it stops at the first destination-level error.
 
 ### R-04 — Rename accepted path segments / renamed the download folder of a loose file
 - **What happened:** the backend accepted names like `..\somewhere` (moves the folder elsewhere) and a "folder" rename on a loose file (renames the download folder). The UI hid these options but the API did not.

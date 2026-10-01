@@ -1,7 +1,7 @@
-"""Reorganize analysis: suggestions for standardizing items in place.
+"""Reorganize: suggestions for standardizing items in place, and their execution.
 
-Read-only — nothing in this module changes files. Every suggestion is only applied
-after the user selects it in the Reorganize dialog (execution is a separate step).
+The analysis only reads the disk. Files are changed only by apply_changes(), with the
+choices the user selected in the Reorganize dialog and dry run switched off.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from fastapi import HTTPException
 
+from .duplicates import _update_not_duplicates_paths
 from .nfo import _nfo_quality, parse_nfo
 from .settings import (
     EPISODE_RE,
@@ -24,6 +25,7 @@ from .settings import (
     load_config,
     log,
     sanitize_component,
+    valid_component,
 )
 from .settings import fs_path as _fs
 from .state import _lock, _state, all_items
@@ -409,11 +411,36 @@ def _analyse_series(item: Dict[str, Any], naming: Dict[str, Any], planned: Dict[
     return prop
 
 
+def _analyse_item(item: Dict[str, Any], naming: Dict[str, Any], planned: Dict[str, str],
+                  blocked: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if item["type"] == "series":
+        return _analyse_series(item, naming, planned, blocked)
+    if item["id"] != item["path"]:
+        return _analyse_loose(item, naming, planned, blocked)
+    return _analyse_movie_folder(item, naming, planned, blocked)
+
+
+def _roots(config: Dict[str, Any]) -> List[str]:
+    return [p for p in config.get("locations", []) + config.get("downloads", []) if p]
+
+
+def _parent_folders(item: Dict[str, Any], roots: List[str]) -> List[str]:
+    """Folders above the item, up to (not including) its location/download folder."""
+    root = _root_of(item["path"], roots)
+    out: List[str] = []
+    if root:
+        p = item["path"] if item["id"] != item["path"] else os.path.dirname(item["path"])
+        while _key(p) != _key(root) and _key(p).startswith(_key(root).rstrip("\\/") + os.sep):
+            out.append(p)
+            p = os.path.dirname(p)
+    return out
+
+
 # ── Entry points ───────────────────────────────────────────────────────────────
 def build_proposals(config: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Suggestions for the given items (read-only). Transcoded items are never analysed."""
     naming = config["naming"]
-    roots = [p for p in config.get("locations", []) + config.get("downloads", []) if p]
+    roots = _roots(config)
     planned: Dict[str, str] = {}   # normcase target path → item id, to catch two suggestions with one target
     proposals: List[Dict[str, Any]] = []
     blocked: List[Dict[str, Any]] = []
@@ -424,23 +451,14 @@ def build_proposals(config: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict
             continue
         analysed += 1
         n_blocked = len(blocked)
-        if item["type"] == "series":
-            prop = _analyse_series(item, naming, planned, blocked)
-        elif item["id"] != item["path"]:
-            prop = _analyse_loose(item, naming, planned, blocked)
-        else:
-            prop = _analyse_movie_folder(item, naming, planned, blocked)
+        prop = _analyse_item(item, naming, planned, blocked)
         if prop["folder"] or prop["file"] or prop["nfo"] or prop["nfos"] or prop["sanitize"]:
             proposals.append(prop)
         elif len(blocked) == n_blocked:
             compliant += 1
-        # Folders above the item, up to (not including) its location/download folder
-        root = _root_of(item["path"], roots)
-        if root and naming.get("sanitize_names"):
-            p = item["path"] if item["id"] != item["path"] else os.path.dirname(item["path"])
-            while _key(p) != _key(root) and _key(p).startswith(_key(root).rstrip("\\/") + os.sep):
+        if naming.get("sanitize_names"):
+            for p in _parent_folders(item, roots):
                 parents.setdefault(_key(p), p)
-                p = os.path.dirname(p)
     parent_entries: List[Dict[str, Any]] = []
     if naming.get("sanitize_names"):
         parent_entries = _sanitize_entries(list(parents.values()), [], set(), None, planned, blocked)
@@ -466,3 +484,361 @@ def analyse(item_ids: List[str]) -> Dict[str, Any]:
             raise HTTPException(409, "A scan is running — wait until it has finished")
         items = copy.deepcopy([i for i in all_items() if i["id"] in wanted])
     return build_proposals(config, items)
+
+
+# ── Execution ──────────────────────────────────────────────────────────────────
+_ITEM_REASONS = ("stale_cache", "no_year", "multi_video")
+
+
+class _Refused(Exception):
+    """An item cannot be executed; the message is shown to the user."""
+
+
+class _View:
+    """The disk as it will look after the operations planned so far (dry runs span several items)."""
+
+    def __init__(self, added: Optional[set] = None, removed: Optional[set] = None):
+        self.added = set(added or ())
+        self.removed = set(removed or ())
+
+    def copy(self) -> "_View":
+        return _View(self.added, self.removed)
+
+    def exists(self, path: str) -> bool:
+        k = _key(path)
+        if k in self.added:
+            return True
+        return k not in self.removed and _exists(path)
+
+    def add(self, path: str) -> None:
+        self.removed.discard(_key(path))
+        self.added.add(_key(path))
+
+    def remove(self, path: str) -> None:
+        self.added.discard(_key(path))
+        self.removed.add(_key(path))
+
+
+class _Planner:
+    """Collects one item's operations, checking each against the planned view before anything is touched."""
+
+    def __init__(self, view: _View, roots: List[str]):
+        self.view = view
+        self.roots = roots
+        self.ops: List[Dict[str, Any]] = []
+        self._now: Dict[str, str] = {}   # original path → path after the renames planned so far
+
+    def cur(self, path: str) -> str:
+        return self._now.get(_key(path), path)
+
+    def _scope(self, path: str) -> None:
+        if not _root_of(path, self.roots):
+            raise _Refused(f"Outside the configured locations/download folders: {path}")
+
+    def mkdir(self, path: str) -> None:
+        self._scope(path)
+        err = valid_component(os.path.basename(path))
+        if err:
+            raise _Refused(err)
+        if self.view.exists(path):
+            raise _Refused(f"Target already exists: {path}")
+        self.view.add(path)
+        self.ops.append({"op": "mkdir", "kind": "folder", "from": None, "to": path})
+
+    def rename(self, src: str, dst: str, kind: str, op: str = "rename",
+               track: Optional[Tuple[str, str]] = None) -> None:
+        cur = self.cur(src)
+        self._scope(cur)
+        self._scope(dst)
+        err = valid_component(os.path.basename(dst))
+        if err:
+            raise _Refused(err)
+        if not self.view.exists(cur):
+            raise _Refused(f"Not found: {cur}")
+        if cur == dst:
+            return
+        # A change of letter case only is the same path on Windows — allowed, like the Rename dialog
+        if _key(cur) != _key(dst) and self.view.exists(dst):
+            raise _Refused(f"Target already exists: {dst}")
+        self.view.remove(cur)
+        self.view.add(dst)
+        self._now[_key(src)] = dst
+        if track is None and (kind == "folder" or os.path.splitext(dst)[1].lower() in VIDEO_EXTS):
+            track = (cur, dst)
+        self.ops.append({"op": op, "kind": kind, "from": cur, "to": dst, "_track": track})
+
+    def delete(self, path: str) -> None:
+        cur = self.cur(path)
+        self._scope(cur)
+        if not self.view.exists(cur):
+            raise _Refused(f"Not found: {cur}")
+        self.view.remove(cur)
+        self.ops.append({"op": "delete", "kind": "file", "from": cur, "to": None})
+
+
+def _component(name: str) -> str:
+    """A user-edited name, checked as a whole (a basename check would let 'a\\b' through as 'b')."""
+    err = valid_component(name)
+    if err:
+        raise _Refused(err)
+    return name
+
+
+def _wants_format(c: Any) -> bool:
+    return c.apply_folder or c.apply_file or c.apply_nfo or c.nfo_action != "leave" or c.delete_images
+
+
+def _plan_sanitize(entries: List[Dict[str, Any]], pl: _Planner) -> None:
+    """Sanitize renames, deepest path first; a sanitized video's sidecars follow it."""
+    for e in sorted(entries, key=lambda e: e["path"].count(os.sep), reverse=True):
+        parent = os.path.dirname(e["path"])
+        pl.rename(e["path"], os.path.join(parent, e["proposed"]), e["kind"])
+        for f in e["follows"]:
+            pl.rename(os.path.join(parent, f["from"]), os.path.join(parent, f["to"]), "file")
+
+
+def _plan_folder(c: Any, item: Dict[str, Any], prop: Dict[str, Any], reasons: Dict[str, str],
+                 own: Optional[Dict[str, Any]], pl: _Planner) -> None:
+    """The item folder last: the format rename, or else sanitizing its name."""
+    folder = item["path"]
+    if c.apply_folder:
+        if own:
+            raise _Refused("Choose either the folder rename or sanitizing the folder name, not both")
+        name = c.folder_name if c.folder_name is not None else (prop["folder"] or {}).get("to")
+        if name is None:
+            raise _Refused(reasons.get("no_year") or "The folder rename is no longer proposed — refresh the analysis")
+        pl.rename(folder, os.path.join(os.path.dirname(folder), _component(name)), "folder")
+    elif own:
+        _plan_sanitize([own], pl)
+
+
+def _plan_loose(c: Any, item: Dict[str, Any], prop: Dict[str, Any], reasons: Dict[str, str],
+                chosen: List[Dict[str, Any]], pl: _Planner) -> None:
+    """Check 1: create the folder next to the file and move the video + its sidecars into it."""
+    video, parent = item["id"], item["path"]
+    if c.apply_file and not c.apply_folder:
+        raise _Refused("A loose file is only renamed together with creating its folder")
+    if c.apply_nfo or c.nfo_action != "leave":
+        raise _Refused("NFO actions do not apply to a loose file")
+    if c.delete_images and not prop["images"]:
+        raise _Refused("No images are proposed for deletion — refresh the analysis")
+    _plan_sanitize(chosen, pl)
+    if c.apply_folder:
+        if not prop["folder"]:
+            raise _Refused(reasons.get("no_year") or "Creating a folder is no longer proposed — refresh the analysis")
+        target = os.path.join(parent, _component(c.folder_name if c.folder_name is not None else prop["folder"]["to"]))
+        stem, ext = os.path.splitext(os.path.basename(video))
+        new_stem = sanitize_component(stem) or stem
+        if c.apply_file:
+            if c.file_name is not None:
+                new_stem = c.file_name
+            elif prop["file"]:
+                new_stem = os.path.splitext(prop["file"]["to"])[0]
+        _component(new_stem)   # the stem alone too: "Name .mkv" passes as a whole name
+        _component(new_stem + ext)
+        pl.mkdir(target)
+        names = [m["from"] for m in prop["move"]] + ([] if c.delete_images else prop["images"])
+        for n in names:
+            # The item id becomes the new folder, so "not a duplicate" marks follow the video there
+            track = (video, target) if n == os.path.basename(video) else None
+            pl.rename(os.path.join(parent, n), os.path.join(target, _follow(n, stem, new_stem)), "file",
+                      op="move", track=track)
+    if c.delete_images:
+        for img in prop["images"]:
+            pl.delete(os.path.join(parent, img))
+
+
+def _plan_movie(c: Any, item: Dict[str, Any], prop: Dict[str, Any], reasons: Dict[str, str],
+                chosen: List[Dict[str, Any]], pl: _Planner) -> None:
+    """Checks 2–4 and sanitize: sanitize → NFO deletions → file rename → NFO rename → folder."""
+    folder = item["path"]
+    if c.delete_images:
+        raise _Refused("Image deletion is only proposed for loose files")
+    own = next((e for e in chosen if _key(e["path"]) == _key(folder)), None)
+    _plan_sanitize([e for e in chosen if e is not own], pl)
+
+    top = _file_names(folder)
+    main = next((n for n in sorted(top, key=str.lower) if os.path.splitext(n)[1].lower() in VIDEO_EXTS), None)
+    old_stem = os.path.splitext(main)[0] if main else ""
+
+    deleted: set = set()
+    best: Optional[str] = None
+    if c.nfo_action != "leave":
+        nfos = prop["nfos"]
+        if not nfos:
+            raise _Refused("Several NFOs are no longer found — refresh the analysis")
+        if {n.lower() for n in c.nfo_files} != {f["name"].lower() for f in nfos["files"]}:
+            raise _Refused("The NFO files changed since the analysis — refresh and choose again")
+        if c.nfo_action == "use_best":
+            if not nfos["best"]:
+                raise _Refused(nfos["detail"] or "No single best NFO")
+            best = nfos["best"]
+        for f in nfos["files"]:
+            if f["name"] != best:
+                pl.delete(os.path.join(folder, f["name"]))
+                deleted.add(f["name"].lower())
+    if c.apply_nfo and not prop["nfo"]:
+        raise _Refused("The NFO rename is no longer proposed — refresh the analysis")
+
+    final_stem = os.path.splitext(os.path.basename(pl.cur(os.path.join(folder, main))))[0] if main else ""
+    if c.apply_file:
+        if not main:
+            raise _Refused("No video file in the folder itself")
+        if len(item["files"]) > 1:
+            raise _Refused(reasons.get("multi_video")
+                           or f"Contains {len(item['files'])} video files — rename the video manually")
+        if c.file_name is not None:
+            stem = c.file_name
+        else:
+            stem = os.path.splitext(prop["file"]["to"])[0] if prop["file"] else old_stem
+        _component(stem)   # the stem alone too: "Name .mkv" passes as a whole name
+        _component(stem + os.path.splitext(main)[1])
+        if stem != old_stem:
+            pl.rename(os.path.join(folder, main), os.path.join(folder, stem + os.path.splitext(main)[1]), "file")
+            for r in related_files(main, top):
+                if r.lower() not in deleted:
+                    pl.rename(os.path.join(folder, r), os.path.join(folder, _follow(r, old_stem, stem)), "file")
+            final_stem = stem
+
+    if c.apply_nfo:
+        pl.rename(os.path.join(folder, prop["nfo"]["from"]), os.path.join(folder, final_stem + ".nfo"), "file")
+    if best:
+        # Never renamed when already movie.nfo / <video>.nfo (decision #18)
+        name = os.path.basename(pl.cur(os.path.join(folder, best)))
+        if name.lower() not in ("movie.nfo", (final_stem + ".nfo").lower()):
+            pl.rename(os.path.join(folder, best), os.path.join(folder, final_stem + ".nfo"), "file")
+
+    _plan_folder(c, item, prop, reasons, own, pl)
+
+
+def _plan_series(c: Any, item: Dict[str, Any], prop: Dict[str, Any], reasons: Dict[str, str],
+                 chosen: List[Dict[str, Any]], pl: _Planner) -> None:
+    """Check 5 and sanitize: episodes and season folders are only sanitized, never renamed to a format."""
+    if c.apply_file or c.apply_nfo or c.nfo_action != "leave" or c.delete_images:
+        raise _Refused("For a series only the folder is renamed — episodes and season folders are only sanitized")
+    own = next((e for e in chosen if _key(e["path"]) == _key(item["path"])), None)
+    _plan_sanitize([e for e in chosen if e is not own], pl)
+    _plan_folder(c, item, prop, reasons, own, pl)
+
+
+_PLANNERS = {"loose_file": _plan_loose, "movie_folder": _plan_movie, "series": _plan_series}
+
+
+def _plan_item(c: Any, item: Dict[str, Any], naming: Dict[str, Any], pl: _Planner) -> None:
+    """Re-run the analysis on the current disk and plan only what the user selected from it."""
+    blocked: List[Dict[str, Any]] = []
+    prop = _analyse_item(item, naming, {}, blocked)
+    reasons = {b["reason"]: b["detail"] for b in blocked if b["reason"] in _ITEM_REASONS}
+    if "stale_cache" in reasons and _wants_format(c):
+        raise _Refused(reasons["stale_cache"])
+    entries = {_key(e["path"]): e for e in prop["sanitize"]}
+    chosen = []
+    for p in c.sanitize:
+        e = entries.get(_key(p))
+        if not e:
+            why = next((b["detail"] for b in blocked if _key(b["path"]) == _key(p)), None)
+            raise _Refused(why or f"Sanitizing {p} is no longer proposed — refresh the analysis")
+        chosen.append(e)
+    _PLANNERS[prop["kind"]](c, item, prop, reasons, chosen, pl)
+
+
+def _plan_parents(c: Any, allowed: Dict[str, str], pl: _Planner) -> None:
+    """The “Parent folders” group: sanitize only, and only folders above a scanned item."""
+    if _wants_format(c):
+        raise _Refused("Parent folders can only be sanitized")
+    dirs = []
+    for p in c.sanitize:
+        if _key(p) not in allowed:
+            raise _Refused(f"Not a folder above a scanned item: {p}")
+        dirs.append(allowed[_key(p)])
+    blocked: List[Dict[str, Any]] = []
+    entries = _sanitize_entries(dirs, [], set(), None, {}, blocked)
+    if blocked:
+        raise _Refused(blocked[0]["detail"])
+    found = {_key(e["path"]) for e in entries}
+    missing = [d for d in dirs if _key(d) not in found]
+    if missing:
+        raise _Refused(f"Sanitizing {missing[0]} is no longer proposed — refresh the analysis")
+    _plan_sanitize(entries, pl)
+
+
+def _execute(ops: List[Dict[str, Any]]) -> Tuple[int, Optional[str]]:
+    """Run the planned operations in order; stops at the first failure. Returns (done, error)."""
+    for i, o in enumerate(ops):
+        try:
+            if o["op"] == "mkdir":
+                os.mkdir(_fs(o["to"]))
+            elif o["op"] == "delete":
+                os.remove(_fs(o["from"]))
+            else:
+                # Never overwrite (R-03) — os.rename replaces an existing file silently on Linux
+                if _exists(o["to"]) and _key(o["to"]) != _key(o["from"]):
+                    return i, f"Target already exists: {o['to']}"
+                os.rename(_fs(o["from"]), _fs(o["to"]))
+        except OSError as exc:
+            return i, f"{o['op']} failed for {o['from'] or o['to']}: {exc}"
+        log.info("Reorganize: %s %s%s", o["op"], o["from"] or o["to"], f" → {o['to']}" if o["from"] and o["to"] else "")
+        if o.get("_track"):
+            _update_not_duplicates_paths(*o["_track"])
+    return len(ops), None
+
+
+def apply_changes(changes: List[Any], dry_run: bool) -> List[Dict[str, Any]]:
+    """Execute (or dry-run) the user's selections. Items first, then “Parent folders”; no rollback."""
+    config = load_config()
+    naming = config["naming"]
+    roots = _roots(config)
+    wanted = {c.item_id for c in changes if c.item_id}
+    allowed: Dict[str, str] = {}
+    with _lock:
+        if _state["scanning"]:
+            raise HTTPException(409, "A scan is running — wait until it has finished")
+        job = _state["transcode"]
+        if job and job.get("running"):
+            raise HTTPException(409, "A transcoding job is running — wait until it has finished")
+        items = {i["id"]: copy.deepcopy(i) for i in all_items() if i["id"] in wanted}
+        if any(c.item_id is None for c in changes):
+            for i in all_items():
+                if i.get("location") != "transcoded":
+                    for p in _parent_folders(i, roots):
+                        allowed.setdefault(_key(p), p)
+
+    results: List[Dict[str, Any]] = []
+    view = _View()
+    seen: set = set()
+    # Parent folders last, so no item path changes under a pending operation (decision #22)
+    for c in sorted(changes, key=lambda c: c.item_id is None):
+        res: Dict[str, Any] = {"item_id": c.item_id, "ok": False, "dry_run": dry_run, "operations": [], "error": None}
+        results.append(res)
+        if c.item_id in seen:
+            res["error"] = "Listed more than once"
+            continue
+        seen.add(c.item_id)
+        # A dry run plans on top of the earlier items' plans; a real run re-reads the disk per item
+        pl = _Planner(view.copy() if dry_run else _View(), roots)
+        try:
+            if c.item_id is None:
+                _plan_parents(c, allowed, pl)
+            else:
+                item = items.get(c.item_id)
+                if not item:
+                    raise _Refused("Not found — rescan first")
+                if item.get("location") == "transcoded":
+                    raise _Refused("Transcoded items are not reorganized")
+                _plan_item(c, item, naming, pl)
+        except _Refused as exc:
+            res["error"] = str(exc)
+            continue
+        res["operations"] = [{k: v for k, v in o.items() if not k.startswith("_")} for o in pl.ops]
+        if dry_run:
+            view = pl.view
+            res["ok"] = True
+            continue
+        done, err = _execute(pl.ops)
+        res["ok"] = err is None
+        if err:
+            res["error"] = f"{err} — {done} of {len(pl.ops)} operation(s) were done"
+        res["done"] = done
+    log.info("Reorganize %s: %d change(s), %d ok, %d refused/failed", "dry run" if dry_run else "execute",
+             len(results), sum(r["ok"] for r in results), sum(not r["ok"] for r in results))
+    return results

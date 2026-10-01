@@ -2,7 +2,7 @@
 
 Source design: [REORGANIZE-DESIGN.md](REORGANIZE-DESIGN.md)
 
-> **Phases 1 and 2 done (2026-09-29).** Phases 3–6 not started. Ground rule (design): nothing is ever changed without the user selecting it and executing with dry run off.
+> **Phases 1 and 2 done (2026-09-29), Phase 3 done (2026-10-01).** Phases 4–6 not started. Ground rule (design): nothing is ever changed without the user selecting it and executing with dry run off.
 >
 > **Operational note:** the UI server does not auto-reload — restart it after every backend phase, or new endpoints 404 and new config keys are silently dropped.
 
@@ -13,7 +13,7 @@ Source design: [REORGANIZE-DESIGN.md](REORGANIZE-DESIGN.md)
 | 1 | Config & Settings UI (Naming Format) | Done 2026-09-29 |
 | 2 | Analysis engine (`py/ui/reorganize.py`) | Done 2026-09-29 |
 | 2b | Scanner: see folders whose name ends with a space/dot (Windows) | Done 2026-10-01 |
-| 3 | Execution engine + API | Not started |
+| 3 | Execution engine + API | Done 2026-10-01 |
 | 4 | Reorganize Dialog (frontend) | Not started |
 | 5 | Toolbar button + badge | Not started |
 | 6 | Risk register + verification | Not started |
@@ -63,22 +63,38 @@ On Windows `Path.is_dir()` strips a trailing space/dot and returns False, `rglob
 
 ## Phase 3 — Execution engine + API
 
+Readiness review 2026-10-01 (decisions #19–#25 below) refined this phase.
+
 **`py/ui/reorganize.py`**:
-- `apply_changes(changes, dry_run) -> per-item results`. For each change, in order: re-validate name (`valid_component`), re-check stale cache, re-check conflicts, then plan the full operation list (mkdir / moves / renames / deletions) before touching anything — same plan-then-execute style as `rename_item`.
-- Every destination is checked with `dst.exists()` before any `shutil.move`/`Path.rename` (R-03 rule). Never overwrite; a mid-item failure stops that item and reports it, already-finished items stay (no rollback).
-- **Sanitize execution:** the server recomputes each target from the current on-disk name with `sanitize_component` (never a client-supplied name), re-checks conflict/empty/`SxxEyy`, renames deepest paths first, then the item's format renames. On Windows the source path uses the `\\?\` extended prefix (names ending in a dot/space are unreachable otherwise).
-- In-memory state update after a successful item (id/path/files/folder/raw_name), mirroring what move/rename already do, so the UI is consistent before the next scan.
-- **Models** (`models.py`): `ReorganizeChange` (`item_id: Optional` — null for “Parent folders”, `folder_name`, `file_name`, `apply_folder`, `apply_file`, `apply_nfo` (4a rename), `nfo_action: use_best|delete_all|leave = leave`, `delete_images`, `sanitize: List[str]` paths) and `ReorganizeBody` (`changes`, `dry_run: bool = True`). NFO actions re-check that the folder still holds exactly the analysed NFOs, else refuse.
+- `apply_changes(changes, dry_run) -> per-item results`. Refused with 409 while a scan **or a transcode** runs (decision #23).
+- **Server re-analysis (decision #20):** for every selected item the server re-runs the per-item analysis (`_analyse_*`) against the current disk. From the client it takes **only the user's choices** — the checkboxes (`apply_folder`, `apply_file`, `apply_nfo`, `delete_images`, selected sanitize paths), the edited `folder_name` / `file_name`, and `nfo_action`. Everything else — move list, sidecars/followers, images, NFO target, sanitize targets — comes from the server's own re-analysis, never from the client. If the re-analysis differs from what the user saw (item now stale/blocked, a selected operation no longer proposed, NFO set changed), that item is refused with the reason.
+- Then plan the full operation list (mkdir / moves / renames / deletions) before touching anything — the plan-then-execute style of `fileops.rename_item`, but **not** by calling it (it raises HTTP errors, stops at the first problem and has no `\\?\` support; decision #24).
+- Edited names are re-validated with `valid_component`; conflicts are re-checked on disk and across all planned targets of the request.
+- Every destination is checked with exists (via `fs_path`) before any `shutil.move`/rename (R-03 rule) — also needed because `rename` overwrites silently on Linux. **Exception:** a rename that only changes letter case of the same path is allowed (same rule as `rename_item`; decision #25). Never overwrite; a mid-item failure stops that item and reports it, already-finished items stay (no rollback).
+- **Sanitize execution (decision #21):** a sanitize path is accepted only when the server's re-analysis produced the same sanitize entry for it — for that item, or for the “Parent folders” group (`item_id` null). Any other path is refused. The target is recomputed from the current on-disk name with `sanitize_component` (never a client-supplied name), re-checking conflict/empty/`SxxEyy`; followers are recomputed too. All disk access uses the `\\?\` prefix on Windows (`fs_path`).
+- **Order (decision #22):** per item — sanitize renames deepest path first, then the item's format operations (folder create/rename, file rename + followers, NFO, image deletion). **Parent folders run last**, after all items, deepest first, so no item path changes under a pending operation.
+- **No in-memory state update (decision #19):** move/rename never updated `_state` either, and item ids are paths. After execution the user rescans (Phase 4 “Rescan now” prompt). Exception: `_update_not_duplicates_paths(old, new)` is called for every item whose id path changes (folder rename/create, loose-file move), so “not a duplicate” marks survive.
+- **Result shape (decision #25):** `[{item_id, ok, dry_run, operations: [{op, from, to}], error}]` with `op` ∈ `mkdir | move | rename | delete`; a dry run returns exactly the operations execute would perform, in execution order. `item_id` null = Parent folders.
+- **Models** (`models.py`): `ReorganizeChange` (`item_id: Optional` — null for “Parent folders”, `folder_name`, `file_name`, `apply_folder`, `apply_file`, `apply_nfo` (4a rename), `nfo_action: use_best|delete_all|leave = leave`, `nfo_files: List[str]` — the NFO names the user saw, `delete_images`, `sanitize: List[str]` paths) and `ReorganizeBody` (`changes`, `dry_run: bool = True`). NFO actions refuse unless the folder still holds exactly `nfo_files`.
 - **Route**: `POST /api/reorganize`.
 
 **Done when:** dry run reports exactly what execute then does; every guard in the design's safety table is enforced server-side and covered in Phase 6 verification.
+
+**As implemented (2026-10-01):**
+- `_Planner` checks every operation against a `_View` of the disk (planned adds/removes on top of the real disk), so a dry run over several items also catches two selected changes with the same target. A real run re-reads the disk per item and re-checks each target right before `os.rename` (no `shutil.move` — all moves stay on the same volume).
+- Per-item order for movie folders: sanitize (deepest first) → NFO deletions → video rename + followers → NFO rename (4a / *use the best*) → folder rename. Loose files: mkdir → moves → image deletion.
+- Edited names are validated as a whole (so `a\b` is refused, not checked as `b`), and a file stem is also validated on its own (`"Name "` + `.mkv` would otherwise pass).
+- Strict “no longer proposed” refusals: a selected option with nothing behind it (`delete_images` without images, `apply_nfo` without a 4a proposal, a sanitize path the re-analysis didn't produce) refuses the item. The dialog (Phase 4) must only send what the row shows.
+- Result items also carry `kind` per operation (`folder`/`file`) and, after a real run, `done` (operations completed — tells the user how far a failed item got).
+- Verified against a temp tree (module functions called directly): edited-name refusals (separator, illegal char, trailing space in stem), foreign sanitize path, parent path not above an item, `nfo_files` mismatch, series file rename, 409 during scan/transcode, case-only rename, dry run leaves the tree identical and lists exactly the operations execute performs, full execute (scene folder + file + NFO + `.en.srt`, lone NFO 4a, *use the best* keeping `movie.nfo`, `Marvel ` parent, episode + sidecar + `Season 1 ` sanitize, loose files with sidecar/poster, `Alien`/`Aliens` separation), not-duplicate marks follow, rescan → re-analysis leaves only the unticked conflict, stale cache refuses format but allows sanitize, sanitize onto an existing file refused, two loose files into one new folder.
 
 ## Phase 4 — Reorganize Dialog
 
 **Frontend** (`index.html` modal + `app.js`):
 - Modal per the design mock: proposal rows (checkbox, current → **two editable name fields — folder and file** — with a per-row “= folder” sync toggle defaulting to `file_equals_folder` and per-row file-rename disable, operation summary, expander with the exact file operations and the item's sanitize entries, each with its own checkbox, image deletion as its own checkbox, several-NFO choice preset to *leave as is*), a “Parent folders” group for `parent_folders`, conflict rows red + unchecked, collapsed Blocked section with reasons, All/None, dry-run checkbox (default on), Preview/Do it, Close. The dialog sends the ids of `filteredItems` when it opens (and on Refresh).
 - Client-side live validation of edited names (single component) and conflict re-check via the proposals data; server re-validates regardless.
-- Execution renders per-row results (done/failed + reason); a completion footer offers "Rescan now" (reuse `triggerScan()`).
+- Execution renders per-row results (done/failed + reason); a completion footer offers "Rescan now" (reuse `triggerScan()`). The rescan is required — the server does not update in-memory state (decision #19), so until then the library shows the old names.
+- Each change also sends `nfo_files` (the NFO names shown in the row) for the server's NFO re-check (decision #20).
 - Follow existing modal conventions (event delegation, `esc()` everywhere user data is interpolated, `_apiErr` for errors).
 
 **Done when:** full flow works against a temp-tree scan: open → edit → select subset → preview → execute → per-row results → rescan prompt.
@@ -96,7 +112,7 @@ On Windows `Path.is_dir()` strips a trailing space/dot and returns False, `rglob
 
 **Verification** (repo pattern — no test files; real files in a temp dir, config patched in memory):
 - Temp dir + `load_config` patched on `reorganize`/`scanner`/`fileops` modules + `scanner.CACHE_DIR` redirected; call module functions and route handlers directly (no httpx/TestClient).
-- Cases: the Phase 2 matrix end-to-end (analyse → execute → re-analyse shows compliant), plus: dry run touches nothing (tree snapshot identical), conflict refusal, `Alien`/`Aliens` sidecar separation, stale-cache refusal, series folder rename updates episode item paths in state, name edited in the dialog to something illegal is refused server-side, sanitize of an episode + its `.en.srt` inside a sanitized season folder (deepest first, both end up legal), sanitize with a tampered client target is ignored (server recomputes).
+- Cases: the Phase 2 matrix end-to-end (analyse → execute → **rescan** → re-analyse shows compliant; decision #19), plus: dry run touches nothing (tree snapshot identical) and lists the same operations execute performs, conflict refusal, `Alien`/`Aliens` sidecar separation, stale-cache refusal, refusal while a scan/transcode runs, series folder rename (episodes found under the new path after rescan), not-duplicate marks follow a renamed item, case-only rename allowed, name edited in the dialog to something illegal is refused server-side, sanitize of an episode + its `.en.srt` inside a sanitized season folder (deepest first, both end up legal), a sanitize path not produced by the re-analysis is refused, parent folder sanitized after the items below it, NFO action refused when `nfo_files` no longer matches the folder.
 - Update the memory/docs notes if any convention emerges (e.g. shared name-validation helper location).
 
 ---
@@ -133,3 +149,15 @@ On Windows `Path.is_dir()` strips a trailing space/dot and returns False, `rglob
 | 16 | Parts in one folder | **A sub-folder suggestion per file anyway**; the second one becomes a conflict. |
 | 17 | Lone NFO with another name (2026-10-01) | **Suggest renaming it to `<video>.nfo`** — Jellyfin ignores it otherwise. |
 | 18 | NFO already named `movie.nfo` / `<video>.nfo` (2026-10-01) | **Never renamed** — also not by *use the best* (`nfos.target` = its own name, `rename_best: false`). |
+
+## Decisions (confirmed 2026-10-01, Phase 3 readiness review)
+
+| # | Question | Decision |
+| :--- | :--- | :--- |
+| 19 | In-memory state after execution | **Not updated** (move/rename don't either; ids are paths). The user rescans via the “Rescan now” prompt. `_update_not_duplicates_paths` is called for every renamed/moved item. |
+| 20 | Trusting the client | **Server re-runs the per-item analysis** at execute time and takes only the user's choices (checkboxes, edited folder/file name, NFO action) from the client; everything else is recomputed. Mismatch → that item is refused. `nfo_files` added to the request for the NFO re-check. |
+| 21 | Accepted sanitize paths | **Only paths the server's re-analysis produced** for that item / the Parent folders group; anything else is refused. |
+| 22 | Execution order | Per item: sanitize deepest first, then format operations. **Parent folders last**, deepest first. |
+| 23 | Concurrency | Execution **refused (409) while a scan or a transcode runs**. |
+| 24 | Reuse of `rename_item` | **Same plan-then-execute pattern, not a call** — it raises HTTP errors, stops at the first problem and lacks `\\?\` support. |
+| 25 | Case-only renames; result shape | Case-only renames of the same path are **allowed** (like `rename_item`). Result: `[{item_id, ok, dry_run, operations: [{op, from, to}], error}]`. |

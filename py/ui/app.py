@@ -6,6 +6,7 @@ request models live in models.py.
 from __future__ import annotations
 
 import copy
+import os
 import threading
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
@@ -27,6 +28,7 @@ from .models import (
     NotDupRemoveBody,
     PlayBody,
     RenameBody,
+    ReorganizeBody,
     ReorganizeProposalsBody,
     TranscodeProbeBody,
     TranscodeStartBody,
@@ -35,6 +37,7 @@ from .models import (
 )
 from .nfo import copy_nfo, read_nfo
 from .reorganize import analyse as reorganize_analyse
+from .reorganize import apply_changes as reorganize_apply
 from .scanner import _all_locations_cached, _load_all_caches, run_scan
 from .settings import (
     STATIC_DIR,
@@ -84,7 +87,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
+    # File mtimes as version so the browser fetches app.js/app.css again after a change
+    ver = {name: int((STATIC_DIR / name).stat().st_mtime) for name in ("app.js", "app.css")}
+    return templates.TemplateResponse(request=request, name="index.html", context={"ver": ver})
 
 
 # ── Config API ─────────────────────────────────────────────────────────────────
@@ -191,7 +196,27 @@ def api_play(body: PlayBody):
 
 @app.post("/api/move")
 def api_move(body: MoveBody):
-    return move_items(body.item_ids, body.target_base, body.dry_run)
+    results = move_items(body.item_ids, body.target_base, body.dry_run)
+    if not body.dry_run and any(r["ok"] for r in results):
+        _remember_move_target(body.target_base)
+    return results
+
+
+def _remember_move_target(target: str) -> None:
+    """Store ``target`` as ``last_move_target`` if it is a configured location/download.
+
+    Custom paths are not remembered. The config is only written when the value changes.
+    """
+    cfg = load_config()
+    key = os.path.normcase(os.path.normpath(target))
+    match = next((p for p in cfg.get("locations", []) + cfg.get("downloads", [])
+                  if p and os.path.normcase(os.path.normpath(p)) == key), None)
+    if match and cfg.get("last_move_target") != match:
+        cfg["last_move_target"] = match
+        try:
+            _write_config(cfg)
+        except OSError:
+            pass  # only a convenience — the move itself succeeded
 
 
 @app.post("/api/rename")
@@ -209,6 +234,11 @@ def api_delete(body: DeleteBody):
 @app.post("/api/reorganize/proposals")
 def api_reorganize_proposals(body: ReorganizeProposalsBody):
     return reorganize_analyse(body.item_ids)
+
+
+@app.post("/api/reorganize")
+def api_reorganize(body: ReorganizeBody):
+    return reorganize_apply(body.changes, body.dry_run)
 
 
 # ── NFO API ────────────────────────────────────────────────────────────────────

@@ -42,6 +42,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const tcConsole = document.getElementById('transcodeConsoleModal');
   tcConsole.addEventListener('shown.bs.modal', () => { tcConsoleOpen = true; });
   tcConsole.addEventListener('hidden.bs.modal', () => { tcConsoleOpen = false; });
+
+  document.getElementById('dryrunModal').addEventListener('hidden.bs.modal', () => {
+    const cb = resultModalOnClose;
+    resultModalOnClose = null;
+    if (cb) cb();
+  });
+  // While a move runs the dialog cannot be closed (Esc, backdrop, ×, Cancel)
+  document.getElementById('moveModal').addEventListener('hide.bs.modal', e => {
+    if (moveInProgress) e.preventDefault();
+  });
+  window.addEventListener('beforeunload', e => {
+    if (moveInProgress) { e.preventDefault(); e.returnValue = ''; }
+  });
   document.getElementById('tc-files').addEventListener('change', e => {
     if (e.target.closest('.tc-audio')) updateTranscodeStartBtn();
   });
@@ -1459,11 +1472,7 @@ async function loadSettings() {
     _fillNamingSettings(cfg.naming);
     document.getElementById('tc-output-share').value = _shareFor(shares, ((cfg.transcode || {}).output_root || ''));
     updateServerModeUI();
-    // Populate move target dropdown
-    const all = [...(cfg.locations || []), ...(cfg.downloads || [])].filter(Boolean);
-    const sel = document.getElementById('move-target-select');
-    sel.innerHTML = '<option value="">— select a configured path —</option>'
-      + all.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    fillMoveTargets(cfg);
   } catch (e) {
     showToast('Could not load settings: ' + e.message, 'warning');
   }
@@ -1742,15 +1751,70 @@ async function confirmDelete() {
 }
 
 // ── Move ──────────────────────────────────────────────────────────────────────
+/**
+ * Populate the Move destination dropdown with the configured locations and downloads,
+ * preselecting the last used destination if it is still configured.
+ */
+function fillMoveTargets(cfg) {
+  const all = [...(cfg.locations || []), ...(cfg.downloads || [])].filter(Boolean);
+  const sel = document.getElementById('move-target-select');
+  sel.innerHTML = '<option value="">— select a configured path —</option>'
+    + all.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  sel.value = all.includes(cfg.last_move_target) ? cfg.last_move_target : '';
+}
+
 function openMoveDialog() {
   if (selectedIds.size === 0) return;
+  fillMoveTargets(configCache || {});
   const items = [...selectedIds].map(id => allItems.find(i => i.id === id)).filter(Boolean);
   document.getElementById('move-items-preview').innerHTML =
     `Moving <strong>${items.length}</strong> item(s): `
     + items.map(i => `<span class="badge bg-secondary ms-1">${esc(i.title)}</span>`).join('');
   document.getElementById('move-dryrun').checked = true;
   document.getElementById('move-target-custom').value = '';
+  setMoveBusy(false);
   getModal('moveModal').show();
+}
+
+// True while real moves are running — blocks closing the Move dialog and the page.
+let moveInProgress = false;
+
+/** Lock/unlock the Move dialog and show/hide its progress area. */
+function setMoveBusy(busy) {
+  moveInProgress = busy;
+  document.getElementById('move-progress').classList.toggle('d-none', !busy);
+  for (const id of ['move-confirm-btn', 'move-cancel-btn', 'move-dryrun',
+                    'move-target-select', 'move-target-custom']) {
+    document.getElementById(id).disabled = busy;
+  }
+  document.querySelector('#moveModal .btn-close').disabled = busy;
+  const btn = document.getElementById('move-confirm-btn');
+  btn.innerHTML = busy
+    ? '<span class="spinner-border spinner-border-sm me-1"></span>Moving…'
+    : '<i class="bi bi-folder-symlink me-1"></i>Move';
+}
+
+/** Update the progress bar: `done` of `total` finished, `current` is being moved now. */
+function setMoveProgress(done, total, current) {
+  const bar = document.getElementById('move-progress-bar');
+  bar.style.width = `${total ? Math.round(done / total * 100) : 0}%`;
+  bar.textContent = `${done} / ${total}`;
+  document.getElementById('move-progress-text').textContent = current ? `Moving: ${current}` : '';
+}
+
+/** Hide the Move dialog, then run `fn` once it is fully closed (avoids stacked modals). */
+function afterMoveModalHidden(fn) {
+  document.getElementById('moveModal').addEventListener('hidden.bs.modal', fn, { once: true });
+  getModal('moveModal').hide();
+}
+
+/** Format move results as lines for the result modal (failures first). */
+function _moveResultLines(results) {
+  const titleOf = id => (allItems.find(i => i.id === id) || {}).title || id;
+  const fail = results.filter(r => !r.ok).map(r => `✗ ${titleOf(r.id)}\n  ${r.error}`);
+  const ok   = results.filter(r => r.ok).map(r =>
+    `✓ ${r.from}\n  → ${r.to}${r.cross_drive ? `\n  (other drive: copies ${fmtSize(r.size)})` : ''}`);
+  return [...fail, ...ok];
 }
 
 async function confirmMove() {
@@ -1762,18 +1826,79 @@ async function confirmMove() {
     showToast('Please select or enter a destination path.', 'warning');
     return;
   }
-  try {
-    const results = await api('POST', '/api/move', {
-      item_ids: [...selectedIds],
-      target_base: target,
-      dry_run: dryRun,
-    });
-    getModal('moveModal').hide();
-    handleActionResults(results, dryRun, 'move', 'moved');
-    if (!dryRun) { clearSelection(); triggerScan(); }
-  } catch (e) {
-    showToast('Move failed: ' + e.message, 'danger');
+  const ids = [...selectedIds];
+  if (dryRun) return dryRunMove(ids, target);
+
+  // Real move: one request per item so progress can be shown
+  setMoveBusy(true);
+  const results = [];
+  let aborted = '';
+  for (let n = 0; n < ids.length; n++) {
+    const item = allItems.find(i => i.id === ids[n]);
+    setMoveProgress(n, ids.length, item ? item.title : ids[n]);
+    try {
+      const res = await api('POST', '/api/move', { item_ids: [ids[n]], target_base: target, dry_run: false });
+      results.push(...res);
+    } catch (e) {
+      // Destination problem (or lost connection) — stop, the remaining items would fail too
+      aborted = _apiErr(e);
+      break;
+    }
   }
+  setMoveProgress(results.length, ids.length, '');
+  setMoveBusy(false);
+
+  const ok   = results.filter(r => r.ok).length;
+  const fail = results.filter(r => !r.ok).length;
+  if (ok) {
+    // Mirror the server: remember a configured destination for the next Move
+    if ([...(configCache.locations || []), ...(configCache.downloads || [])].includes(target)) {
+      configCache.last_move_target = target;
+    }
+    // Moved items no longer exist at their listed path — drop them now so they
+    // cannot be selected/moved again; the rescan adds them back at their new location.
+    const moved = new Set(results.filter(r => r.ok).map(r => r.id));
+    allItems = allItems.filter(i => !moved.has(i.id));
+    selectedIds.clear();
+    applyFilters();
+    updateSelectionUI();
+    triggerScan();
+  }
+  if (!fail && !aborted) {
+    afterMoveModalHidden(() => showToast(`moved: ${ok} item(s)`, 'success'));
+    return;
+  }
+  let status = `Moved ${ok} of ${ids.length} item(s). ${fail} failed.`;
+  if (aborted) status += `<br>Stopped: ${esc(aborted)} — ${ids.length - results.length} item(s) not attempted.`;
+  afterMoveModalHidden(() => showResultModal({
+    title: 'Move Result', good: false, status, lines: _moveResultLines(results),
+  }));
+}
+
+/** Run the move as a dry run, show the result, then return to the Move dialog. */
+async function dryRunMove(ids, target) {
+  let results = [], error = '';
+  const btn = document.getElementById('move-confirm-btn');
+  btn.disabled = true;
+  try {
+    results = await api('POST', '/api/move', { item_ids: ids, target_base: target, dry_run: true });
+  } catch (e) {
+    error = _apiErr(e);
+  } finally {
+    btn.disabled = false;
+  }
+  const fail = results.filter(r => !r.ok).length;
+  const good = !error && !fail && results.length > 0;
+  const status = error
+    ? `Nothing can be moved to <strong>${esc(target)}</strong>:<br>${esc(error)}`
+    : good
+      ? `All ${results.length} item(s) can be moved to <strong>${esc(target)}</strong> (destination is writable).`
+      : `${fail} of ${results.length} item(s) cannot be moved — they will be skipped.`;
+  const backToMove = () => getModal('moveModal').show();
+  afterMoveModalHidden(() => showResultModal({
+    good, status, lines: error ? [] : _moveResultLines(results),
+    closeText: 'Back to Move', onClose: backToMove,
+  }));
 }
 
 // ── Rename ────────────────────────────────────────────────────────────────────
@@ -2514,7 +2639,34 @@ function handleActionResults(results, dryRun, verb, pastVerb) {
 }
 
 function showDryRunModal(lines) {
+  showResultModal({ lines });
+}
+
+// Called once when the result modal closes (e.g. to return to the Move dialog).
+let resultModalOnClose = null;
+
+/**
+ * Show the result modal.
+ * @param {object}   opts
+ * @param {string[]} opts.lines       detail lines, separated by a blank line
+ * @param {string}   [opts.title]     modal title (default "Dry Run Result")
+ * @param {boolean}  [opts.good]      true = green banner, false = red banner, undefined = no banner
+ * @param {string}   [opts.status]    banner text (HTML)
+ * @param {string}   [opts.closeText] close button label (default "Close")
+ * @param {Function} [opts.onClose]   called once after the modal has closed
+ */
+function showResultModal({ lines, title = 'Dry Run Result', good, status = '', closeText = 'Close', onClose = null }) {
+  document.getElementById('dryrun-title').textContent = title;
+  const banner = document.getElementById('dryrun-status');
+  if (good === undefined) {
+    banner.className = 'alert py-2 d-none';
+  } else {
+    banner.className = `alert py-2 ${good ? 'alert-success' : 'alert-danger'}`;
+    banner.innerHTML = `<i class="bi ${good ? 'bi-check-circle-fill' : 'bi-x-octagon-fill'} me-2"></i>${status}`;
+  }
   document.getElementById('dryrun-content').textContent = lines.join('\n\n');
+  document.getElementById('dryrun-close-btn').textContent = closeText;
+  resultModalOnClose = onClose;
   getModal('dryrunModal').show();
 }
 
