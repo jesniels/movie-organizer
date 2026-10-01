@@ -53,7 +53,7 @@ A slower, deeper analysis pass that surfaces proposed Bundles, duplicate movies,
 _Avoid_: Deep scan, analysis scan, enhanced scan, library scan
 
 **Organize**:
-The operation of moving one or more selected items to a chosen Library Location, creating per-movie subfolders for Loose Files, optionally renaming NFO files and deleting image files, and presenting a per-item preview before execution.
+The operation of moving one or more selected items to a chosen Library Location, creating per-movie subfolders for Loose Files, optionally deleting image files (NFO files keep their name — `movie.nfo` or `<video>.nfo`), and presenting a per-item preview before execution.
 _Avoid_: Move (Move is a separate, raw-relocation action), sort, transfer, migrate
 
 **Move**:

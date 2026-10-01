@@ -12,7 +12,7 @@ Source design: [REORGANIZE-DESIGN.md](REORGANIZE-DESIGN.md)
 | :--- | :--- | :--- |
 | 1 | Config & Settings UI (Naming Format) | Done 2026-09-29 |
 | 2 | Analysis engine (`py/ui/reorganize.py`) | Done 2026-09-29 |
-| 2b | Scanner: see folders whose name ends with a space/dot (Windows) | Not started — found in Phase 2, needs approval |
+| 2b | Scanner: see folders whose name ends with a space/dot (Windows) | Done 2026-10-01 |
 | 3 | Execution engine + API | Not started |
 | 4 | Reorganize Dialog (frontend) | Not started |
 | 5 | Toolbar button + badge | Not started |
@@ -57,9 +57,9 @@ Each phase is independently shippable; the feature is inert until Phase 5 expose
 
 **Verified** against a temp tree (module functions called directly): compliant items (incl. case-only difference, lone `movie.nfo`), scene-named folder → folder + file rename with `.en.srt` follower, several NFOs → choice with best = full-quality NFO, `Alien`/`Aliens` loose files kept apart, image suggested for deletion, no-year, multi-video, existing-target conflict with `(1)` suggestion, stale cache, series folder rename, episode + `.en.srt` sanitize, `Season 2 ` folder sanitize, sanitize conflict `S01E02 .mkv`/`S01E02.mkv`, grouping folder `Marvel ` in `parent_folders`.
 
-## Phase 2b — Scanner and trailing-space folders (found in Phase 2, not started)
+## Phase 2b — Scanner and trailing-space folders (done 2026-10-01)
 
-On Windows `Path.is_dir()` strips a trailing space/dot and returns False, so `_scan_recursive` skips such folders, and `SEASON_DIR_RE.fullmatch("Season 1 ")` fails. Items below such folders are missing from the scan and therefore from the analysis. Fix idea: use `os.scandir` `DirEntry.is_dir()` (no re-stat) in the scanner and match season folders on the stripped name. Needs the user's go-ahead (touches scanning and cached data).
+On Windows `Path.is_dir()` strips a trailing space/dot and returns False, `rglob` does not enter such folders, and `SEASON_DIR_RE.fullmatch("Season 1 ")` failed — items below/inside such folders were missing from the scan. Fixed in `scanner.py`: `_is_dir()` (falls back to `settings.fs_path`, the `\\?\` prefix helper now shared with `reorganize.py`), `_walk_entries()` replaces `rglob` (same order: a folder's own files before sub-folders), season folders match on the stripped name, the movie NFO lookup uses `iterdir`. Verified: `Marvel \Iron Man (2008)`, `Breaking Bad\Season 1 \…`, `Heat (1995) \…` are found and get sanitize/rename suggestions. Follow-up risk R-16 (Move/Rename/Delete on such items may fail safely) registered in APPLICATION-RISKS.md.
 
 ## Phase 3 — Execution engine + API
 
@@ -132,3 +132,4 @@ On Windows `Path.is_dir()` strips a trailing space/dot and returns False, so `_s
 | 15 | Titles without NFO | **Own parser** (`parse_name`) understanding scene names. |
 | 16 | Parts in one folder | **A sub-folder suggestion per file anyway**; the second one becomes a conflict. |
 | 17 | Lone NFO with another name (2026-10-01) | **Suggest renaming it to `<video>.nfo`** — Jellyfin ignores it otherwise. |
+| 18 | NFO already named `movie.nfo` / `<video>.nfo` (2026-10-01) | **Never renamed** — also not by *use the best* (`nfos.target` = its own name, `rename_best: false`). |

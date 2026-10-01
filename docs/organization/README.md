@@ -15,7 +15,7 @@ The core workflow is: content lands in a Download Location → user selects item
 
 | Document | Description |
 |---|---|
-| [organize.md](./organize.md) | Organize action — move items to library with subfolder creation, NFO handling, and image management |
+| [organize.md](./organize.md) | Organize action — move items to library with subfolder creation and image management (NFOs keep their name) |
 | [smart-scan.md](./smart-scan.md) | Smart Scan — deeper library analysis: proposed bundles, duplicates, NFO gaps |
 
 ## Other Actions
@@ -59,9 +59,8 @@ This is derived from the **Bundle Path** tracked by the scanner.
 settings:
   organize:
     delete_images_default: true   # Default for "Delete images" checkbox in Organize dialog
-    rename_nfo_default: true      # Default for "Rename NFO to movie.nfo" checkbox
     warn_mixed_types: true        # Warn when organizing movies and series to the same destination
     picker_depth: 2               # Subdirectory levels shown in the destination picker
 ```
 
-All four settings are editable in the Settings modal in the UI.
+All three settings are editable in the Settings modal in the UI. (There is no NFO-rename setting: NFOs keep their name — `movie.nfo` or `<video>.nfo` — decided 2026-10-01.)

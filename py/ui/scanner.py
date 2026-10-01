@@ -17,6 +17,7 @@ from .settings import (
     VIDEO_EXTS,
     YEAR_RE,
     _clean_title,
+    fs_path,
     load_config,
     log,
     safe_transcoded_root,
@@ -27,26 +28,53 @@ from .state import _lock, _state
 
 
 # ── Scanner helpers ────────────────────────────────────────────────────────────
+def _is_dir(p: Path) -> bool:
+    """Path.is_dir() that also sees folders whose name ends with a space/dot (Windows strips those)."""
+    return p.is_dir() or os.path.isdir(fs_path(str(p)))
+
+
+def _is_season_dir(p: Path) -> bool:
+    return SEASON_DIR_RE.fullmatch(p.name.strip()) is not None and _is_dir(p)
+
+
+def _walk_entries(folder: Path) -> List[Tuple[Path, bool]]:
+    """(path, is_dir) for everything below folder; unlike rglob it also enters folders ending with a space/dot."""
+    out: List[Tuple[Path, bool]] = []
+    stack = [folder]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(fs_path(str(d))) as it:
+                for e in it:
+                    p = d / e.name
+                    is_dir = e.is_dir(follow_symlinks=False)
+                    out.append((p, is_dir))
+                    if is_dir:
+                        stack.append(p)
+        except OSError as exc:
+            log.warning("Cannot read directory %s: %s", d, exc)
+    return out
+
+
 def _video_files(folder: Path) -> List[Path]:
-    return [f for f in folder.rglob("*") if f.is_file() and f.suffix.lower() in VIDEO_EXTS]
+    return [p for p, is_dir in _walk_entries(folder) if not is_dir and p.suffix.lower() in VIDEO_EXTS]
 
 
 def _is_series(folder: Path) -> bool:
-    for f in folder.rglob("*"):
-        if f.is_file() and f.suffix.lower() in VIDEO_EXTS and EPISODE_RE.search(f.name):
+    for f, is_dir in _walk_entries(folder):
+        if not is_dir and f.suffix.lower() in VIDEO_EXTS and EPISODE_RE.search(f.name):
             return True
-        if f.is_dir() and SEASON_DIR_RE.fullmatch(f.name):
+        if is_dir and SEASON_DIR_RE.fullmatch(f.name.strip()):
             return True
     return False
 
 
 def _series_episodes(folder: Path) -> Dict[int, List[int]]:
     seasons: Dict[int, set] = {}
-    for f in folder.rglob("*"):
-        if f.is_file() and f.suffix.lower() in VIDEO_EXTS:
-            m = EPISODE_RE.search(f.name)
-            if m:
-                seasons.setdefault(int(m.group(1)), set()).add(int(m.group(2)))
+    for f in _video_files(folder):
+        m = EPISODE_RE.search(f.name)
+        if m:
+            seasons.setdefault(int(m.group(1)), set()).add(int(m.group(2)))
     return {s: sorted(eps) for s, eps in sorted(seasons.items())}
 
 
@@ -77,7 +105,7 @@ def _is_leaf_folder(entry: Path) -> bool:
         return False
     if any(f.is_file() and f.suffix.lower() in VIDEO_EXTS for f in children):
         return True
-    if any(f.is_dir() and SEASON_DIR_RE.fullmatch(f.name) for f in children):
+    if any(_is_season_dir(f) for f in children):
         return True
     return False
 
@@ -158,7 +186,7 @@ def _process_leaf(entry: Path, loc: str, items: List[Dict[str, Any]]) -> None:
             return
         folder_name = entry.name
         title = _clean_title(folder_name)
-        nfo_path = next(entry.glob("*.nfo"), None)
+        nfo_path = next((f for f in entry.iterdir() if f.suffix.lower() == ".nfo" and f.is_file()), None)
         nfo = parse_nfo(nfo_path) if nfo_path else {}
         m = YEAR_RE.search(folder_name)
         items.append({
@@ -191,7 +219,7 @@ def _scan_recursive(folder: Path, loc: str, items: List[Dict[str, Any]],
             items.append(_movie_item_from_file(f, loc))
 
     for entry in entries:
-        if not entry.is_dir():
+        if not _is_dir(entry):
             continue
         if os.path.normcase(os.path.normpath(str(entry))) in excluded:
             log.info("Skipping %s — it is a separately configured location.", entry)

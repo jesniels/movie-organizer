@@ -68,9 +68,9 @@ Name comparisons are case-insensitive (Windows), and compare against the format 
 | 1 | **Loose File** (id ≠ path) | Create `<movie_folder>` next to the file and move the video + its exact-stem sidecars into it (stem rules identical to the CLI organizer, see R-09). The video is renamed to `<movie_file>` when `rename_files`; sidecars (incl. `<video>.nfo`) follow the new stem. Exact-stem images are suggested for deletion when `delete_images`, otherwise moved along. Illegal characters in the moved names are sanitized as part of the move (visible in the move list). Several loose files that would get the same folder name (e.g. Part 1 / Part 2) each get their own suggestion; the second one is a **Conflict**. |
 | 2 | Folder name ≠ `movie_folder` format | Rename the folder. |
 | 3 | Video file stem ≠ `movie_file` format (single-video movies only, when `rename_files`) | Rename the video file; exact-stem sidecars (incl. `<video>.nfo`) follow, keeping their suffix chain (`Old.en.srt` → `New.en.srt`). |
-| 4 | (when `resolve_nfos`) **a)** exactly one top-level `.nfo`, named neither `movie.nfo` nor `<video>.nfo` (Jellyfin ignores it) — **b)** several top-level `.nfo` files | **a)** Rename it to `<video>.nfo` (the video's name after any check-3 rename). **b)** Offer a choice, default **leave as is**: *use the best* (rename the best NFO to `<video>.nfo`, delete the others), *delete all* (Jellyfin recreates it on its next scan), *leave as is* (resolve manually). Best = highest quality (full > partial > none), then most filled fields; on a tie *use the best* is not offered. |
+| 4 | (when `resolve_nfos`) **a)** exactly one top-level `.nfo`, named neither `movie.nfo` nor `<video>.nfo` (Jellyfin ignores it) — **b)** several top-level `.nfo` files | **a)** Rename it to `<video>.nfo` (the video's name after any check-3 rename). **b)** Offer a choice, default **leave as is**: *use the best* (delete the others; the best keeps its name when it is `movie.nfo` or `<video>.nfo`, otherwise it is renamed to `<video>.nfo`), *delete all* (Jellyfin recreates it on its next scan), *leave as is* (resolve manually). Best = highest quality (full > partial > none), then most filled fields; on a tie *use the best* is not offered. |
 
-**NFO naming rule:** NFOs are named after the video (`<video>.nfo`). Reorganize **never creates or suggests `movie.nfo`**. A single existing NFO named `movie.nfo` (written by Jellyfin) or `<video>.nfo` is left alone; a single NFO with any other name gets a rename suggestion (4a); several NFOs get the choice (4b).
+**NFO naming rule:** an NFO named `movie.nfo` or `<video>.nfo` already works for Jellyfin and is **never renamed** (decision #18) — except that `<video>.nfo` follows its video when the video itself is renamed, so it keeps matching. Reorganize **never creates or suggests `movie.nfo`**. A single NFO with any other name gets a rename suggestion to `<video>.nfo` (4a); several NFOs get the choice (4b).
 
 A single item can combine 2+3+4 into one Proposal. Multi-video movie folders get folder renames only — file renames are **Blocked** for them (extras/parts, see R-15).
 
@@ -95,7 +95,7 @@ Scope: **every file and folder inside the analysed items** (the item folder itse
 - **Format wins:** when checks 1–5 already rename the same file/folder, the sanitize entry is dropped (the format result is legal by construction).
 - **Order:** sanitize renames run deepest path first (children before their parent folder), then the item's format renames.
 - **Windows note:** NTFS cannot hold `: * ? " < > |`, so on a Windows backend the check mostly finds trailing dots/spaces (and names on shares from a Linux NAS may appear mangled). On a Linux/NAS backend (server mode) all illegal characters are found. Names ending with a dot/space are only reachable on Windows via the `\\?\` extended path prefix — the analysis reads the disk that way (`reorganize._fs`) and execution must too.
-- **Known limitation (found 2026-09-29):** the **scanner** does not see folders whose name ends with a space/dot on Windows (`Path.is_dir()` strips the trailing space and returns False; `Season 1 ` also fails the season-folder pattern). Items *below* such a folder are therefore missing from the scan, and so from the analysis. Only folders above/inside items the scanner did find are suggested for sanitizing. Fixing the scanner is a separate change (see plan).
+- **Scanner (fixed 2026-10-01):** the scanner used to skip folders whose name ends with a space/dot on Windows, so items below them were missing from the scan and the analysis. It now finds them (plan Phase 2b); see risk R-16 for the remaining limitation of Move/Rename/Delete on such items.
 
 ### Blocked items
 
@@ -132,7 +132,8 @@ Shown in the dialog under a collapsed "Cannot propose" section, each with its re
       "nfo":    null,                                    // 4a: { "from": "Heat.1995.1080p.nfo", "to": "Heat (1995).nfo", "conflict": false }
       "nfos":   null,                                    // or the 4b choice:
       // { "files": [{name, after, quality, fields}], "best": "movie.nfo"|null, "target": "<video>.nfo",
-      //   "options": ["use_best", "delete_all", "leave"], "default": "leave", "detail": null }
+      //   "rename_best": false, "options": ["use_best", "delete_all", "leave"], "default": "leave", "detail": null }
+      // target = the best's own name when it is movie.nfo / <video>.nfo (rename_best false), else <video>.nfo
       "sanitize": [
         { "path": "…\\Show\\Season 1\\Show S01E01 .mkv", "kind": "file", "current": "Show S01E01 .mkv",
           "proposed": "Show S01E01.mkv", "follows": [{ "from": "Show S01E01 .en.srt", "to": "Show S01E01.en.srt" }],
@@ -246,3 +247,4 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 15. **Own name parser** (`reorganize.parse_name`) for items without NFO values, understanding scene names.
 16. **Loose files in the same folder that map to the same movie folder** (e.g. parts) each get their own suggestion — no special blocking; the second becomes a conflict.
 17. **A lone NFO with neither `movie.nfo` nor the video's name** (Jellyfin ignores it) gets a rename suggestion to `<video>.nfo` (2026-10-01; amends #13).
+18. **An NFO named `movie.nfo` or `<video>.nfo` is never renamed** — it works for Jellyfin. Applies to *use the best* too: the best only gets the video's name when it has another name (2026-10-01; amends #13).

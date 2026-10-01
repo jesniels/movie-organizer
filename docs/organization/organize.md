@@ -47,9 +47,8 @@ Each item appears as one line:
 | Option | Applies to | Default |
 |---|---|---|
 | Delete images (jpg / jpeg / png) | Movies and Series | `delete_images_default` |
-| Rename NFO to `movie.nfo` | Movies only | `rename_nfo_default` |
 
-The NFO rename checkbox is inactive (greyed out) when only Series are selected — Series already use `tvshow.nfo` and no renaming is needed.
+**NFO files keep their name** (decided 2026-10-01, same rule as Reorganize): an NFO named `movie.nfo` or after the video (`<video>.nfo`) already works for Jellyfin and is moved as-is — never renamed. There is no “Rename NFO to `movie.nfo`” option; Organize never creates or renames to `movie.nfo`.
 
 ---
 
@@ -61,22 +60,21 @@ A video file sitting directly in a Download Location without its own subfolder (
 1. Derive subfolder name from the video file's stem, stripping quality tags (e.g. `Inception (2010) 1080p BluRay.mkv` → `Inception (2010)`). If an NFO is present and contains a title + year, that is used as the authoritative name.
 2. Collect all sibling files sharing the same stem (video, NFO, subtitles, etc.).
 3. If "Delete images" is checked: remove `.jpg`/`.jpeg`/`.png` files from the collected set.
-4. If "Rename NFO" is checked: rename any `*.nfo` in the set to `movie.nfo`.
+4. NFOs in the set keep their name (`<video>.nfo` stays `<video>.nfo`).
 5. Create the subfolder at the chosen destination and move all remaining files into it.
 
 ### Already-Organised Movie
 A folder containing a single film's files (e.g. `The Dark Knight (2008)\`).
 
 1. If "Delete images" is checked: delete image files inside the folder.
-2. If "Rename NFO" is checked: rename any `*.nfo` inside to `movie.nfo`.
-3. Move the folder to the chosen destination.
+2. Move the folder to the chosen destination. NFOs inside (`movie.nfo` or `<video>.nfo`) travel with it unchanged.
 
 ### Series
 A top-level folder with season subfolders (`S01\`, `S02\`, …).
 
 1. If "Delete images" is checked: delete image files found inside the folder tree.
 2. Move the entire top-level series folder to the chosen destination. Season folders, episode files, and `tvshow.nfo` all travel with it.
-3. NFO rename does not apply — `tvshow.nfo` is the correct Jellyfin name and is left as-is.
+3. NFOs are left as-is — `tvshow.nfo` and per-episode `<video>.nfo` are the correct Jellyfin names.
 
 ---
 

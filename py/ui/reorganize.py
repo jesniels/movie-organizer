@@ -8,7 +8,6 @@ from __future__ import annotations
 import copy
 import os
 import re
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -26,6 +25,7 @@ from .settings import (
     log,
     sanitize_component,
 )
+from .settings import fs_path as _fs
 from .state import _lock, _state, all_items
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
@@ -35,13 +35,6 @@ _NFO_FIELDS = ("title", "year", "plot", "rating", "genre", "studio", "tagline", 
 
 
 # ── Filesystem helpers ─────────────────────────────────────────────────────────
-def _fs(path: str) -> str:
-    """Filesystem form of a path; on Windows the \\\\?\\ prefix makes names ending in a dot/space reachable."""
-    if sys.platform != "win32" or path.startswith("\\\\?\\"):
-        return path
-    path = path.replace("/", "\\")
-    return "\\\\?\\UNC\\" + path[2:] if path.startswith("\\\\") else "\\\\?\\" + path
-
 
 def _exists(path: str) -> bool:
     return os.path.exists(_fs(path))
@@ -187,10 +180,14 @@ def _nfo_choice(folder: str, nfo_names: List[str], old_stem: str, final_stem: st
     for e in entries:
         del e["_score"]
     unique = len(best) == 1
+    # A best NFO already named movie.nfo or <video>.nfo works for Jellyfin — keep its name
+    ok_names = ("movie.nfo", (final_stem + ".nfo").lower())
+    target = best[0]["after"] if unique and best[0]["after"].lower() in ok_names else final_stem + ".nfo"
     return {
         "files":   entries,
         "best":    best[0]["name"] if unique else None,
-        "target":  final_stem + ".nfo",
+        "target":  target,
+        "rename_best": bool(unique) and best[0]["after"] != target,
         "options": (["use_best"] if unique else []) + ["delete_all", "leave"],
         "default": "leave",
         "detail":  None if unique else "No single best NFO (equal quality) — use best is not possible",

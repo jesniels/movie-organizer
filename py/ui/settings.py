@@ -73,6 +73,14 @@ def _clean_title(name: str) -> str:
     return name.strip()
 
 
+def fs_path(path: str) -> str:
+    """Filesystem form of a path; on Windows the \\\\?\\ prefix makes names ending in a dot/space reachable."""
+    if sys.platform != "win32" or path.startswith("\\\\?\\"):
+        return path
+    path = path.replace("/", "\\")
+    return "\\\\?\\UNC\\" + path[2:] if path.startswith("\\\\") else "\\\\?\\" + path
+
+
 def transcoded_root(config: Dict[str, Any]) -> str:
     """Configured transcode output folder, stripped of the quotes "Copy as path" adds; '' if unset."""
     return ((config.get("transcode") or {}).get("output_root") or "").strip().strip('"').strip()

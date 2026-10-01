@@ -27,6 +27,7 @@ Last full audit: 2026-09-27.
 | R-13 | Collection folders are scanned as one movie | Scanner / Delete | **Open** (warning only) |
 | R-14 | Whole-file NFO copy overwrites without backup or dry run | NFO | **Open** |
 | R-15 | Renaming a multi-video movie renames extras too | Rename | **Open** (dry run shows it) |
+| R-16 | Items under names ending with a space/dot: Move/Rename/Delete may fail | Scanner / file ops | **Open** (fails safely) |
 
 ---
 
@@ -99,6 +100,11 @@ Last full audit: 2026-09-27.
 ### R-15 — Renaming a multi-video movie renames extras too
 - **Risk:** a movie folder with several video files (extras, trailers, parts) gets all of them renamed to `Name - Part N`.
 - **Current mitigation:** Rename is dry run by default and lists every file change.
+
+### R-16 — Items under names ending with a space/dot: Move/Rename/Delete may fail
+- **Background (2026-10-01):** Windows strips a trailing space/dot from the last part of a path, so `Path.is_dir()` returned False for e.g. `Marvel ` or `Season 1 ` and the scanner skipped them. The scanner now sees them (`scanner._is_dir`, `_walk_entries` and `settings.fs_path` use the `\\?\` prefix), so such items appear in the UI for the first time.
+- **Risk:** Move, Rename and Delete use normal paths. On an item whose **own** folder name ends with a space/dot they fail with an error (e.g. Delete treats the folder as a file and `unlink` fails; the stale-cache check is skipped because `is_dir()` is False). Nothing is lost, but the action does not work.
+- **Mitigation:** sanitize the name first via Reorganize (it uses the `\\?\` prefix). **Possible fix:** use `fs_path` in `fileops` too.
 
 ---
 

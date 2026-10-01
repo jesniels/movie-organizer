@@ -47,7 +47,7 @@ A pure-Python toolset for organizing movie/series files for Jellyfin media libra
 - The web UI runs from the repo root and resolves paths relative to the project (`web/` for config, cache, templates, static).
 - Destructive file operations must support a dry-run mode and be safe by default (see ADRs in `docs/adr/`).
 - Before adding or changing anything that moves, renames, overwrites or deletes files, read `docs/APPLICATION-RISKS.md`, keep its safeguards intact, and add new risks/guards there. Loose-file items (id = file path) must be acted on as files, never via `item["path"]`; never call `shutil.move` without checking the destination does not exist.
-- Jellyfin conventions apply: `Title (Year)` folder naming, images deleted from source (Jellyfin regenerates them). NFOs are named after the video (`<video>.nfo`); the web UI never creates or renames to `movie.nfo` (an existing Jellyfin `movie.nfo` is left alone). Only the CLI `movie-organizer.py` still renames to `movie.nfo`.
+- Jellyfin conventions apply: `Title (Year)` folder naming, images deleted from source (Jellyfin regenerates them). NFOs named `movie.nfo` or after the video (`<video>.nfo`) work for Jellyfin and are never renamed by the web UI (a `<video>.nfo` only follows its video when the video is renamed); the web UI never creates or renames to `movie.nfo`. Only the CLI `movie-organizer.py` still renames to `movie.nfo`.
 - The web UI never changes files on its own: every rename/move/delete is suggested, selected by the user and executed explicitly (dry run by default).
 - Consult `docs/organization/CONTEXT.md` and the ADRs before changing organize/scan behavior.
 - make sure new functions are documented and follow the established conventions.

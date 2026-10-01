@@ -19,7 +19,7 @@ The result is a fragmented workflow: the web UI provides visibility, but organis
 
 Extend the web UI with two major capabilities:
 
-1. **Organize action** — a bulk operation that moves selected movies or series from any configured location into a chosen Library Location, creating per-movie subfolders for Loose Files, handling NFO renaming and image deletion, showing a full per-item preview with conflict detection, and executing with a visible progress modal that can be cancelled safely.
+1. **Organize action** — a bulk operation that moves selected movies or series from any configured location into a chosen Library Location, creating per-movie subfolders for Loose Files, handling image deletion (NFO files keep their name), showing a full per-item preview with conflict detection, and executing with a visible progress modal that can be cancelled safely.
 
 2. **Smart Scan** — a separate, deeper analysis pass that runs alongside (but independently of) the Basic Scan. It surfaces proposed Bundles, duplicate movies, and NFO gaps. Results are persisted across restarts and displayed in a dedicated sidebar section with actionable dialogs for each finding type.
 
@@ -46,7 +46,7 @@ Supporting these, the scanner is extended to track Bundle Paths, the destination
 13. As a user, I want a conflict row to show an auto-suggested alternative name (e.g. `GoldenEye (1995) (1)`), so that I have a safe option to approve instead of figuring out a name myself.
 14. As a user, I want conflict rows to be unchecked by default, so that I must actively approve each conflict rather than accidentally overwriting.
 15. As a user, I want a "Delete images" checkbox in the Organize dialog, so that I can choose whether to remove jpg/png files that Jellyfin will regenerate.
-16. As a user, I want a "Rename NFO to movie.nfo" checkbox in the Organize dialog (movies only), so that I can control whether NFO files are renamed for Jellyfin compatibility.
+16. As a user, I want NFO files to keep their name (`movie.nfo` or named after the video) when organizing, so that Jellyfin keeps reading them and nothing is renamed unnecessarily. (Changed 2026-10-01 — previously a “Rename NFO to movie.nfo” checkbox.)
 17. As a user, I want both checkboxes to be inactive when only series are selected, so that I am not confused by options that do not apply to series.
 18. As a user, I want the defaults for both checkboxes to be configurable in Settings, so that I do not have to adjust them on every organize operation.
 19. As a user, I want to be warned when my selection mixes movies and series going to the same destination, so that I do not accidentally mix content types in a Library Location.
@@ -98,7 +98,7 @@ Supporting these, the scanner is extended to track Bundle Paths, the destination
 
 54. As a user, I want to configure the destination picker depth in Settings, so that the picker matches the depth of my actual folder structure.
 55. As a user, I want to configure the default value of the "Delete images" checkbox in Settings, so that it is already set correctly when I open the Organize dialog.
-56. As a user, I want to configure the default value of the "Rename NFO to movie.nfo" checkbox in Settings, so that it is already set correctly when I open the Organize dialog.
+56. _(Removed 2026-10-01 — there is no NFO-rename option, so no default to configure.)_
 57. As a user, I want to configure whether the mixed-types warning is shown in Settings, so that power users who intentionally mix movies and series can suppress it.
 
 ---
@@ -113,7 +113,6 @@ A new top-level `settings` section is added. Existing keys (`locations`, `downlo
 settings:
   organize:
     delete_images_default: true
-    rename_nfo_default: true
     warn_mixed_types: true
     picker_depth: 2
 ```
@@ -134,7 +133,7 @@ Items with an empty `bundle_path` show no breadcrumb. Items with a non-empty `bu
 
 A self-contained organize module with two pure-function stages and one I/O execution stage:
 
-**Plan stage** — takes a list of items, a destination path, and options (delete_images, rename_nfo). Returns a plan: a list of `OrganizeMove` objects each containing source, destination folder name, resolved destination path, and a conflict flag. No I/O except checking whether destination folders exist.
+**Plan stage** — takes a list of items, a destination path, and options (delete_images). Returns a plan: a list of `OrganizeMove` objects each containing source, destination folder name, resolved destination path, and a conflict flag. No I/O except checking whether destination folders exist.
 
 **Conflict resolution** — the plan stage auto-generates a non-conflicting alternative name when the destination exists. The UI presents this for user approval; the approved plan is sent to the execute stage.
 
@@ -214,7 +213,7 @@ A good test verifies the external behaviour of a module given a specific input, 
 
 ### Modules to test
 
-**Organize plan generator** — highest priority. Pure function with well-defined inputs and outputs. Test cases: loose file → subfolder name derived from stem; NFO present → NFO title used; quality tags stripped; conflict detected when destination exists; auto-suggested conflict name increments correctly (`(1)`, `(2)`, …); series item always produces a folder-move plan (no subfolder creation); image files excluded from move list when delete_images is true; NFO renamed in plan when rename_nfo is true; NFO rename not in plan for series.
+**Organize plan generator** — highest priority. Pure function with well-defined inputs and outputs. Test cases: loose file → subfolder name derived from stem; NFO present → NFO title used; quality tags stripped; conflict detected when destination exists; auto-suggested conflict name increments correctly (`(1)`, `(2)`, …); series item always produces a folder-move plan (no subfolder creation); image files excluded from move list when delete_images is true; NFO files keep their name in the plan (never renamed to `movie.nfo`).
 
 **Bundle path extractor** — pure function. Test cases: item directly under library root → empty bundle path; item one level deep → single-element bundle path; item two levels deep → two-element bundle path; path not under library root → error or empty.
 
