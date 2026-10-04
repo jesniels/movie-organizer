@@ -128,7 +128,7 @@ All routes stay thin in `app.py`; logic lives in `transcode.py`; request models 
 - `py/ui/state.py`: `_state["transcoded"]` + `all_items()` (library + downloads + transcoded, caller holds `_lock`) — used by `resolve_item`, `api_library`, duplicates and NFO copy.
 - `py/ui/fileops.py`: Delete also accepts paths inside the output folder.
 - `py/ui/transcode.py`: job start creates `Movies\` and `Series\`; after a job with ≥1 done file the worker calls `refresh_transcoded()` before reporting "not running"; transcoded items cannot be probed/transcoded again.
-- `web/static/app.js`: **Transcoded** group in the location tree, shown only when it has items, children `Movies` / `Series` (short names, full path in tooltip); sidebar status rows for transcoded movies/series (only when > 0); location badges/labels centralised in `locBadgeHtml` / `_locLabel` (`primary` colour for Transcoded); scan popover icon; lists reload when a job finishes with done files; Transcode button disabled for transcoded items.
+- `web/static/app.js` (now `web/static/js/library.js`, `scan.js`, `transcode.js`): **Transcoded** group in the location tree, shown only when it has items, children `Movies` / `Series` (short names, full path in tooltip); sidebar status rows for transcoded movies/series (only when > 0); location badges/labels centralised in `locBadgeHtml` / `_locLabel` (`primary` colour for Transcoded); scan popover icon; lists reload when a job finishes with done files; Transcode button disabled for transcoded items.
 
 ## Phase 5 — Duplicates integration ✅
 
@@ -159,7 +159,7 @@ All routes stay thin in `app.py`; logic lives in `transcode.py`; request models 
 | Per-encoder ffmpeg quality arguments | `ENCODER_QUALITY_ARGS` (`py/ui/transcode.py`) |
 | Encoder choices shown in the UI (also used by "Test all") | `#tc-encoder` options in `web/templates/index.html` |
 
-Adding an encoder = `Encoder` literal + `ENCODER_QUALITY_ARGS` entry + dropdown option (+ hint text in `app.js`).
+Adding an encoder = `Encoder` literal + `ENCODER_QUALITY_ARGS` entry + dropdown option (+ hint text in `_ENCODER_HELP` in `web/static/js/settings.js`).
 
 ## API overview
 
@@ -189,7 +189,7 @@ Adding an encoder = `Encoder` literal + `ENCODER_QUALITY_ARGS` entry + dropdown 
 | `py/ui/duplicates.py` | `transcoded` flag on groups; uses `all_items()` | Done |
 | `py/ui/nfo.py`, `py/ui/fileops.py` | `all_items()`; Delete allowed inside the output folder | Done |
 | `web/templates/index.html` | Settings tab, transcode/console/use-transcoded modals, navbar badge, Select transcoded, compare footer button | Done |
-| `web/static/app.js`, `web/static/app.css` | Corresponding frontend logic; `dot-primary` | Done |
+| `web/static/app.js` (now split into `web/static/js/`, ADR 0004), `web/static/app.css` | Corresponding frontend logic; `dot-primary` | Done |
 
 ## Out of scope (v1)
 

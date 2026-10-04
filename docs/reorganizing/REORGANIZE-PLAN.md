@@ -2,7 +2,7 @@
 
 Source design: [REORGANIZE-DESIGN.md](REORGANIZE-DESIGN.md)
 
-> **Phases 1 and 2 done (2026-09-29), Phase 3 done (2026-10-01).** Phases 4–6 not started. Ground rule (design): nothing is ever changed without the user selecting it and executing with dry run off.
+> **Phases 1 and 2 done (2026-09-29), Phase 3 done (2026-10-01), Phases 4 and 5 done (2026-10-04; the user tests the full flow in the browser). Phase 6: risk register and backend test done, dialog verification by the user.** Ground rule (design): nothing is ever changed without the user selecting it and executing with dry run off.
 >
 > **Operational note:** the UI server does not auto-reload — restart it after every backend phase, or new endpoints 404 and new config keys are silently dropped.
 
@@ -14,9 +14,9 @@ Source design: [REORGANIZE-DESIGN.md](REORGANIZE-DESIGN.md)
 | 2 | Analysis engine (`py/ui/reorganize.py`) | Done 2026-09-29 |
 | 2b | Scanner: see folders whose name ends with a space/dot (Windows) | Done 2026-10-01 |
 | 3 | Execution engine + API | Done 2026-10-01 |
-| 4 | Reorganize Dialog (frontend) | Not started |
-| 5 | Toolbar button + badge | Not started |
-| 6 | Risk register + verification | Not started |
+| 4 | Reorganize Dialog (frontend) | Done 2026-10-04 |
+| 5 | Toolbar button + badge | Done 2026-10-04 |
+| 6 | Risk register + verification | Risk register + backend test done 2026-10-04; dialog flow tested by the user |
 
 Each phase is independently shippable; the feature is inert until Phase 5 exposes it.
 
@@ -33,7 +33,7 @@ Each phase is independently shippable; the feature is inert until Phase 5 expose
   - `valid_component(name) -> str | None` — returns the error text for separators, `.`/`..`, illegal Windows chars, control chars, trailing dot/space, reserved device names; `fileops._check_name` (Rename) now calls it, so the rules cannot drift apart (decision #6).
   - `naming_error(naming) -> str | None` — template validation used by the save endpoint: must contain `{title}`, only known placeholders, no unmatched braces, sample expansion must pass `valid_component`.
 
-**Frontend** (`web/templates/index.html`, `web/static/app.js`):
+**Frontend** (`web/templates/index.html`, `web/static/js/settings.js`):
 - Dedicated **Naming** tab in the Settings modal (decision #2): the three format fields, each with an explanation of the supported placeholders and naming rules directly below it; `rename_files` / `resolve_nfos` / `delete_images` / `sanitize_names` checkboxes, all labelled “Suggest …”, and a highlighted top statement that the settings never change files (decision #11); a “File name = folder name” sync checkbox stored as `file_equals_folder` (disables the file field while checked; decision #7); and a live preview per field (`Alien (1979)`, `Alien (1979).mkv`, `Breaking Bad (2008)`) updated on input.
 - The dialog states **exactly what will happen**: the rules box defines the Sanitize rule; the series-folder help says episodes/season folders are never renamed to a format but are offered for sanitizing; the “Sanitize names” help lists the scope (every file and folder in locations + downloads), the stem rule for files, that `SxxEyy` stays intact, that same-stem subtitles/NFOs follow, and that nothing changes until executed in the dialog.
 - `loadSettings`/`saveSettings` round-trip the `naming` section; save is refused client-side on template validation errors (mirroring server checks).
@@ -90,7 +90,7 @@ Readiness review 2026-10-01 (decisions #19–#25 below) refined this phase.
 
 ## Phase 4 — Reorganize Dialog
 
-**Frontend** (`index.html` modal + `app.js`):
+**Frontend** (`index.html` modal + `web/static/js/reorganize.js`):
 - Modal per the design mock: proposal rows (checkbox, current → **two editable name fields — folder and file** — with a per-row “= folder” sync toggle defaulting to `file_equals_folder` and per-row file-rename disable, operation summary, expander with the exact file operations and the item's sanitize entries, each with its own checkbox, image deletion as its own checkbox, several-NFO choice preset to *leave as is*), a “Parent folders” group for `parent_folders`, conflict rows red + unchecked, collapsed Blocked section with reasons, All/None, dry-run checkbox (default on), Preview/Do it, Close. The dialog sends the ids of `filteredItems` when it opens (and on Refresh).
 - Client-side live validation of edited names (single component) and conflict re-check via the proposals data; server re-validates regardless.
 - Execution renders per-row results (done/failed + reason); a completion footer offers "Rescan now" (reuse `triggerScan()`). The rescan is required — the server does not update in-memory state (decision #19), so until then the library shows the old names.
@@ -99,12 +99,25 @@ Readiness review 2026-10-01 (decisions #19–#25 below) refined this phase.
 
 **Done when:** full flow works against a temp-tree scan: open → edit → select subset → preview → execute → per-row results → rescan prompt.
 
+**As implemented (2026-10-04)** — `reorganizeModal` in `index.html`, `web/static/js/reorganize.js` (was a section of `app.js` before ADR 0004), `.ro-*` styles in `app.css`. Decisions #26–#35 below came out of the user's testing.
+- **Rows:** row checkbox + current name (quoted, so trailing spaces show) + kind badge + title/year/source; a line per suggestion with its own checkbox — folder (editable), file stem (editable, extension shown, “= folder” sync), NFO rename (4a, target follows the file name), several NFOs (select, files with quality, ★ best), image deletion; sanitize entries under *Details* (shown directly when they are the only suggestion), plus what follows the video. Conflicts are red and unticked; blocked reasons for the item are shown in the row and in the collapsed *Cannot propose* list.
+- **Ticks:** checkboxes carry `data-default` (ticked by default and by All) or `data-conflict` (ticked only as an approval). Image deletion and a file rename that was not suggested are never ticked automatically. A file line for an already correct video is only shown next to a folder field (for the sync). Editing a name ticks it; for a loose file the file rename needs the new folder.
+- **Row checkbox (#30):** empty → ticks every suggestion of the row (conflicts approved); partly ticked → completes the row; fully ticked → clears it (and sets the NFO choice back to *leave as is*). The several-NFOs choice is never picked automatically — not by the row checkbox, not by All.
+- **Live checks:** edited names mirror `valid_component` (no trimming — a trailing space is an error); ticked folder/file targets are checked against the other ticked rows and the folders/videos of the scanned library (#34). Advisory only.
+- **Request:** one change per ticked row (`apply_*` from the ticks, `folder_name`, `file_name` only when the stem differs from the current one, `nfo_action` + `nfo_files`, `sanitize` paths); Parent folders last as `item_id: null`.
+- **Preview** (dry run on, default): one request, exact operations listed under each row (paths relative to the row's folder). **Do it** (dry run off): in-dialog confirmation (#26), then one request per row with progress; closing the dialog/page is blocked while it runs; an HTTP error stops the run (the remaining rows show “Not attempted”).
+- **Working in steps (#29):** done rows stay ticked, keep their result and are locked (green, “already reorganized”); failed and not-attempted rows stay selectable; rows below a renamed parent folder are unticked and locked (“rescan and refresh first”). All/None, Preview and Do it only touch unlocked rows. The header adds “N done”; **Rescan now** stays in the footer until a scan finishes.
+- **Duplicates (#31):** rows whose item is in a duplicate group (`duplicateMap`, not-duplicate marks excluded) get a badge and a hint; a panel below the rows lists them and asks (after every analysis) whether to leave them out of the default selection and All (default) or include them; **Select N duplicate(s)** appears only while they are left out; **Show duplicates** closes the dialog and switches to the Duplicates filter.
+- The design mock's location dropdown is not built — the left-bar filters are the scope (#28).
+
 ## Phase 5 — Toolbar button + badge
 
 - **Reorganize** button in the header toolbar. The analysis runs **only** when the dialog opens or its Refresh is clicked (decision #1) — no post-scan hook, no background analysis.
 - The badge shows the count from the most recent analysis of the session (updated on dialog open/refresh and after an execution); absent before the first analysis. Disabled with a tooltip while a scan is running (analysis would race the cache rebuild).
 
 **Done when:** the button/badge behave as above and no analysis ever fires automatically (verified by watching the server log across a scan).
+
+**As implemented (2026-10-04):** the button sits in the navbar before Rescan (added during Phase 4 so the dialog could be tested, #35). Badge = rows of the last analysis that still have suggestions (done/locked rows not counted), updated only by an analysis or an execution, hidden at 0 and before the first analysis. `setScanBadge` disables the button while a scan runs; the tooltip sits on a wrapper because a disabled button shows none.
 
 ## Phase 6 — Risk register + verification
 
@@ -114,6 +127,16 @@ Readiness review 2026-10-01 (decisions #19–#25 below) refined this phase.
 - Temp dir + `load_config` patched on `reorganize`/`scanner`/`fileops` modules + `scanner.CACHE_DIR` redirected; call module functions and route handlers directly (no httpx/TestClient).
 - Cases: the Phase 2 matrix end-to-end (analyse → execute → **rescan** → re-analyse shows compliant; decision #19), plus: dry run touches nothing (tree snapshot identical) and lists the same operations execute performs, conflict refusal, `Alien`/`Aliens` sidecar separation, stale-cache refusal, refusal while a scan/transcode runs, series folder rename (episodes found under the new path after rescan), not-duplicate marks follow a renamed item, case-only rename allowed, name edited in the dialog to something illegal is refused server-side, sanitize of an episode + its `.en.srt` inside a sanitized season folder (deepest first, both end up legal), a sanitize path not produced by the re-analysis is refused, parent folder sanitized after the items below it, NFO action refused when `nfo_files` no longer matches the folder.
 - Update the memory/docs notes if any convention emerges (e.g. shared name-validation helper location).
+
+**Done so far (2026-10-04):** risk register R-17 – R-24 added. `py/test/test_reorganize_execution.py` (temp tree in `py/test/_tmp*`, removed afterwards; run with the venv's Python, exit code 0 = pass) covers the backend cases: guards, 409, case-only rename, dry run touches nothing and equals execute, full execute, `Alien`/`Aliens`, not-duplicate marks, rescan → re-analysis, stale cache, sanitize onto an existing file, two changes into one new folder, underscore titles. Still open: the dialog flow (user, in the browser) and the series-after-rescan / parent-folder-after-items cases end-to-end.
+
+## Potential future fixes — REQUIRE A DIALOG WITH THE USER BEFORE ANY CHANGE
+
+Ideas raised during testing that were **deliberately not implemented**. Do not implement any of these without discussing them with the user first.
+
+| # | Raised | Problem | Potential fix (not agreed) |
+| :--- | :--- | :--- | :--- |
+| F1 | 2026-10-01, Phase 4 testing (row “Doctor Strange (2016)”) | A row shows only the **new** name in its folder/file fields, never the **current** one — the header shows the folder name, the “Rename file” line only the suggested video name. When the suggestion equals the title, the user cannot see what would be renamed (or whether anything would). | Every name line shows *current → new*: `Rename file “Doctor.Strange.2016.mp4” → [Doctor Strange (2016)] .mp4` (same for folders). When the new name equals the current one, show “already correct” instead of a checkbox; a line that only exists for the “= folder” sync and is already correct is hidden; editing a name back to the current one shows “already correct” and sends nothing. |
 
 ---
 
@@ -161,3 +184,19 @@ Readiness review 2026-10-01 (decisions #19–#25 below) refined this phase.
 | 23 | Concurrency | Execution **refused (409) while a scan or a transcode runs**. |
 | 24 | Reuse of `rename_item` | **Same plan-then-execute pattern, not a call** — it raises HTTP errors, stops at the first problem and lacks `\\?\` support. |
 | 25 | Case-only renames; result shape | Case-only renames of the same path are **allowed** (like `rename_item`). Result: `[{item_id, ok, dry_run, operations: [{op, from, to}], error}]`. |
+
+## Decisions (2026-10-01 – 2026-10-04, Phase 4/5 testing with the user)
+
+| # | Question | Decision |
+| :--- | :--- | :--- |
+| 26 | Confirming Do it | **Inside the dialog**, never a browser popup: the first click shows the warning in the footer and turns the button into *Confirm (N)*; any change cancels it. |
+| 27 | Image deletion default | **Unticked** (design: defaults never pick a destructive option); unticked images move into the new folder. |
+| 28 | Location dropdown in the mock | **Not built** — the left-bar filters decide the scope (decision #12). |
+| 29 | Working in steps | **Done rows locked for good** (ticks and result kept, nothing selectable until rescan + Refresh); **failed rows selectable again**; rows below a renamed parent folder locked. All/None leave locked rows alone. |
+| 30 | Row checkbox | Completes a partly ticked row. **Several NFOs always start at *leave as is* and only the user changes that choice** — neither the row checkbox nor All picks *use the best* / *delete all* (2026-10-04; an earlier version let the row checkbox pick *use the best*). A row whose only suggestion is the NFO choice gets a disabled row checkbox with a tooltip. |
+| 36 | Browser popups elsewhere | **Replaced app-wide** by in-dialog confirmations (`confirmInDialog`: first click warns in the dialog and relabels the button, second click within 10 s confirms; closing the dialog or changing its options cancels): *Use transcoded video*, *Remove all* registered duplicates, *Kill transcoding*. The rescan question after *Use transcoded video* is a **Rescan now** button in the result dialog. |
+| 31 | Potential duplicates | Rows of items in a duplicate group are marked; a panel asks after every analysis to **leave them out** of the default selection and All (default) or include them; *Select N duplicate(s)* only while left out; *Show duplicates* opens the Duplicates filter. |
+| 32 | Underscores in names | `parse_name` turns **every underscore into a space** (it usually replaced a `:`). |
+| 33 | “= folder” on conflict rows | **Off by default**, so approving `Name (1)` does not put “(1)” in the video name (to be tried by the user). |
+| 34 | Live conflict check | Ticked folder **and file** names are checked against the other ticked rows **and the scanned library**; the server still decides. |
+| 35 | Toolbar button | Added in Phase 4 (needed for testing); badge and scan-disable in Phase 5. |

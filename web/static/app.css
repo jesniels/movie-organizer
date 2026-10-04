@@ -213,7 +213,93 @@ html, body {
   overflow-y: auto;
 }
 
-/* ── Stat cards (Status modal) ───────────────────────────────────────────── */
+/* ── Reorganize dialog ───────────────────────────────────────────────────── */
+.ro-row {
+  padding: .5rem .25rem .5rem .5rem;
+  border-bottom: 1px solid #2b3035;
+  border-left: 3px solid transparent;
+}
+.ro-row.ro-conflict {
+  border-left-color: var(--bs-danger, #dc3545);
+  background-color: rgba(220, 53, 69, 0.06);
+}
+/* Warnings/errors in the dialog: very light red — Bootstrap's red is unreadable on the dark rows */
+.ro-bad { color: #ffd0d5; font-weight: 500; }
+.ro-sub.ro-bad::before,
+div.ro-err.ro-bad::before {
+  content: "\26A0  ";   /* ⚠ */
+  color: #ffc107;
+}
+/* Items in a duplicate group: panel below the rows, and a marker on the row */
+.ro-dup-panel {
+  border: 1px solid #dc3545;
+  border-radius: 6px;
+  padding: .6rem .8rem;
+  background-color: rgba(220, 53, 69, 0.12);
+  color: #f8f9fa;
+}
+.ro-dup-list {
+  max-height: 9rem;
+  overflow-y: auto;
+  padding-left: .5rem;
+  border-left: 2px solid #6c757d;
+}
+.ro-row.ro-dup { border-left-color: #fd7e14; }
+/* Locked rows: done (green) or below a renamed parent folder (yellow) — controls dimmed, result stays readable */
+.ro-row.ro-done {
+  border-left-color: #198754;
+  background-color: rgba(25, 135, 84, 0.07);
+}
+.ro-row.ro-moved {
+  border-left-color: #ffc107;
+  background-color: transparent;
+}
+.ro-row.ro-locked .ro-line,
+.ro-row.ro-locked .ro-sub,
+.ro-row.ro-locked details { opacity: .55; }
+.ro-row .min-w-0 { min-width: 0; }
+.ro-line {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-top: .3rem;
+  min-width: 0;
+}
+.ro-line .form-check-input { flex-shrink: 0; margin-top: 0; }
+.ro-check-gap { width: 1em; flex-shrink: 0; }   /* aligns lines without a checkbox */
+.ro-label { width: 7rem; flex-shrink: 0; color: #adb5bd; }
+.ro-name { max-width: 26rem; font-family: "Consolas", "Menlo", monospace; }
+.ro-name[readonly] { opacity: .7; }
+.ro-nfos { max-width: 32rem; }
+.ro-sub { padding-left: 1.5rem; font-size: .8rem; }
+.ro-sub:empty, .ro-err:empty { display: none; }
+/* A long footer message wraps itself instead of pushing the buttons onto a new line */
+.ro-footer-note { flex: 1 1 0; min-width: 0; }
+#reorganizeModal .modal-footer { flex-wrap: nowrap; }
+#reorganizeModal .modal-footer .btn,
+#reorganizeModal .modal-footer .form-check { flex-shrink: 0; white-space: nowrap; }
+/* In-dialog confirmations ("Do it", confirmInDialog): light text on a tinted red box —
+   plain red text is hard to read on the dark dialogs */
+.ro-confirm-note,
+.confirm-note {
+  display: inline-block;
+  padding: .3rem .6rem;
+  border: 1px solid #dc3545;
+  border-radius: 6px;
+  background-color: rgba(220, 53, 69, 0.25);
+  color: #f8f9fa;
+}
+.ro-confirm-note .bi,
+.confirm-note .bi { color: #ffc107; }
+.ro-ops-list {
+  font-family: "Consolas", "Menlo", monospace;
+  font-size: .78rem;
+  color: #adb5bd;
+  padding-left: 1.25rem;
+  word-break: break-all;
+}
+
+/* ── Stat cards (Status modal)───────────────────────────────────────────── */
 .stat-card {
   border: 1px solid;
   border-radius: 8px;

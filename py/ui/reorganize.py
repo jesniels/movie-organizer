@@ -107,6 +107,8 @@ def parse_name(name: str) -> Tuple[str, str]:
             title, year = s, ""
     if " " not in title.strip():
         title = re.sub(r"[._]+", " ", title)
+    # An underscore is never part of a title — usually a replaced ':' ("Jurassic World_ Fallen Kingdom")
+    title = title.replace("_", " ")
     title = QUALITY_STRIP.sub("", title)
     title = re.sub(r"[\s\-\[\(]+$", "", title)
     return re.sub(r"\s+", " ", title).strip(), year

@@ -85,11 +85,34 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
+# Front-end scripts in web/static/js/, in load order. They are classic scripts sharing one global
+# scope: core.js first (shared state and helpers), main.js last (startup calls).
+UI_SCRIPTS: List[str] = [
+    "core.js",
+    "library.js",
+    "detail.js",
+    "duplicates.js",
+    "scan.js",
+    "settings.js",
+    "file-actions.js",
+    "reorganize.js",
+    "transcode.js",
+    "main.js",
+]
+
+
+def _static_version(rel_path: str) -> int:
+    """File mtime of a static asset, used as `?v=` so the browser fetches it again after a change."""
+    return int((STATIC_DIR / rel_path).stat().st_mtime)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    # File mtimes as version so the browser fetches app.js/app.css again after a change
-    ver = {name: int((STATIC_DIR / name).stat().st_mtime) for name in ("app.js", "app.css")}
-    return templates.TemplateResponse(request=request, name="index.html", context={"ver": ver})
+    context = {
+        "css_ver": _static_version("app.css"),
+        "scripts": [(name, _static_version(f"js/{name}")) for name in UI_SCRIPTS],
+    }
+    return templates.TemplateResponse(request=request, name="index.html", context=context)
 
 
 # ── Config API ─────────────────────────────────────────────────────────────────

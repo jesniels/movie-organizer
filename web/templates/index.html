@@ -6,7 +6,7 @@
   <title>Movie Organizer</title>
   <link rel="stylesheet" href="/static/bootstrap.min.css">
   <link rel="stylesheet" href="/static/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="/static/app.css?v={{ ver['app.css'] }}">
+  <link rel="stylesheet" href="/static/app.css?v={{ css_ver }}">
 </head>
 <body>
 
@@ -23,6 +23,14 @@
       </span>
       <span id="transcode-badge" class="badge bg-info text-dark text-nowrap d-none" role="button"
             title="Click for transcoding console" onclick="openTranscodeConsole()"></span>
+      <!-- The wrapper carries the tooltip: a disabled button shows none -->
+      <span id="btn-reorganize-wrap" class="d-inline-block"
+            title="Suggest standard names for the items shown by the filters — nothing changes until you execute">
+        <button class="btn btn-sm btn-outline-warning" id="btn-reorganize" onclick="openReorganize()">
+          <i class="bi bi-magic me-1"></i>Reorganize
+          <span id="ro-badge" class="badge rounded-pill bg-warning text-dark ms-1 d-none"></span>
+        </button>
+      </span>
       <button class="btn btn-sm btn-outline-light" id="btn-rescan" onclick="triggerScan()">
         <i class="bi bi-arrow-clockwise me-1"></i>Rescan
       </button>
@@ -223,10 +231,11 @@
                 <button class="btn btn-sm btn-outline-danger" onclick="removeNotDups(false)">
                   <i class="bi bi-trash me-1"></i>Remove selected
                 </button>
-                <button class="btn btn-sm btn-outline-danger ms-auto" onclick="removeNotDups(true)">
+                <button class="btn btn-sm btn-outline-danger ms-auto" id="notdup-remove-all-btn" onclick="removeNotDups(true)">
                   <i class="bi bi-trash-fill me-1"></i>Remove all
                 </button>
               </div>
+              <div id="notdup-confirm-note" class="small mt-2 text-end"></div>
             </div>
             <div class="tab-pane fade" id="tab-transcode" role="tabpanel">
               <p class="text-muted small">
@@ -729,6 +738,7 @@
         </div>
         <div class="modal-footer border-secondary">
           <button type="button" class="btn btn-secondary" id="dryrun-close-btn" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-success d-none" id="dryrun-action-btn"></button>
         </div>
       </div>
     </div>
@@ -764,10 +774,11 @@
               <i class="bi bi-eye me-1"></i>Dry run — preview only, no files changed
             </label>
           </div>
+          <div id="ut-confirm-note" class="mt-2"></div>
         </div>
         <div class="modal-footer border-danger">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-danger" onclick="confirmUseTranscoded()">
+          <button type="button" class="btn btn-danger" id="ut-confirm-btn" onclick="confirmUseTranscoded()">
             <i class="bi bi-cpu me-1"></i>Use transcoded video
           </button>
         </div>
@@ -801,6 +812,50 @@
     </div>
   </div>
 
+  <!-- Reorganize modal -->
+  <div class="modal fade" id="reorganizeModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-nowrap"><i class="bi bi-magic me-2 text-warning"></i>Reorganize</h5>
+          <span id="ro-counts" class="small text-muted ms-3 me-auto"></span>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex align-items-center flex-wrap gap-2 mb-2 small">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="ro-all-btn" onclick="selectReorganize(true)"
+                    title="Tick every suggestion except conflicts and image deletions">All</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="ro-none-btn" onclick="selectReorganize(false)">None</button>
+            <button type="button" class="btn btn-sm btn-outline-danger d-none" id="ro-dups-btn" onclick="selectReorganizeDuplicates()"
+                    title="Tick the suggestions of the items listed as potential duplicates (left out of the default selection and All)"></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="ro-refresh-btn" onclick="refreshReorganize()"
+                    title="Analyse again (after a rescan or a change of the filters or settings)">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+            <span class="text-muted ms-2">Scope: <span id="ro-scope">—</span></span>
+          </div>
+          <fieldset id="ro-fieldset">
+            <div id="ro-body" class="small"></div>
+          </fieldset>
+        </div>
+        <div class="modal-footer border-secondary">
+          <span id="ro-footer-note" class="small text-muted me-auto ro-footer-note"></span>
+          <div class="form-check me-2">
+            <input class="form-check-input" type="checkbox" id="ro-dryrun" checked onchange="_roCancelConfirm(); updateReorganizeRunBtn()">
+            <label class="form-check-label text-warning" for="ro-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only
+            </label>
+          </div>
+          <button type="button" class="btn btn-secondary" id="ro-close-btn" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-success d-none" id="ro-rescan-btn" onclick="rescanAfterReorganize()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Rescan now
+          </button>
+          <button type="button" class="btn btn-info" id="ro-run-btn" onclick="runReorganize()" disabled>Preview</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Transcode console modal -->
   <div class="modal fade" id="transcodeConsoleModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -815,9 +870,10 @@
                style="height:45vh;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
         </div>
         <div class="modal-footer border-secondary">
-          <button type="button" class="btn btn-danger me-auto" id="tc-kill-btn" onclick="killTranscode()">
+          <button type="button" class="btn btn-danger" id="tc-kill-btn" onclick="killTranscode()">
             <i class="bi bi-x-octagon me-1"></i>Kill transcoding
           </button>
+          <span id="tc-kill-note" class="small me-auto"></span>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         </div>
       </div>
@@ -858,6 +914,9 @@
   </div>
 
   <script src="/static/bootstrap.bundle.min.js"></script>
-  <script src="/static/app.js?v={{ ver['app.js'] }}"></script>
+  {# Front-end scripts in load order (UI_SCRIPTS in py/ui/app.py) — classic scripts sharing one global scope #}
+  {% for name, v in scripts %}
+  <script src="/static/js/{{ name }}?v={{ v }}"></script>
+  {% endfor %}
 </body>
 </html>

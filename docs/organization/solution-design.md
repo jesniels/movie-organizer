@@ -195,6 +195,8 @@ The two background operations use separate named flags (`_state["scanning"]` for
 
 ### Frontend Modules
 
+Front-end code goes in the feature's script in `web/static/js/`. Shared helpers and state are in `core.js`. A new script must be added to `UI_SCRIPTS` in `py/ui/app.py`. See ADR 0004.
+
 **Organize dialog** — opens from the selection action bar. Steps: destination picker (location + subdirectory) → preview table (per-row checkboxes, conflict highlighting, option checkboxes) → confirmation. Calls plan endpoint when destination is chosen; calls execute endpoint on "Do it".
 
 **Progress modal** — shared component used by Organize execution. Polls `/api/organize/status` every 500 ms. Shows item count progress and current file name. Exposes a cancel callback. Used only for Organize in this phase; Smart Scan progress uses the navbar badge.

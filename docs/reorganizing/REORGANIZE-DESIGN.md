@@ -1,6 +1,6 @@
 # Reorganize — Feature Design
 
-Status: **Phase 1 (Naming Format settings) and Phase 2 (analysis, `py/ui/reorganize.py`) implemented 2026-09-29; Phase 3 (execution, `POST /api/reorganize`) implemented 2026-10-01; dialog not implemented.** Companion plan: [REORGANIZE-PLAN.md](REORGANIZE-PLAN.md)
+Status: **Phase 1 (Naming Format settings) and Phase 2 (analysis, `py/ui/reorganize.py`) implemented 2026-09-29; Phase 3 (execution, `POST /api/reorganize`) implemented 2026-10-01; dialog and toolbar button (Phases 4–5) done 2026-10-04.** Decisions taken while testing the dialog (#26–#35) are in the plan. Companion plan: [REORGANIZE-PLAN.md](REORGANIZE-PLAN.md)
 
 > **Ground rule: Reorganize never changes anything on its own.** Settings and the analysis only decide what is *suggested*. A file or folder is renamed, moved or deleted only after the user selects that suggestion in the Reorganize Dialog and clicks **Do it** with dry run switched off.
 
@@ -43,7 +43,7 @@ naming:
 Every switch only controls whether something is **suggested** — never whether it is done.
 
 **Placeholders:** `{title}` and `{year}` only.
-**Value sources:** NFO `title`/`year` are authoritative per field when present; otherwise they are parsed from the folder name (then the video file stem) by `reorganize.parse_name`, which also understands scene names: dots/underscores → spaces, a bare `19xx`/`20xx` year (not at the start, not after a quality tag, not in the future), quality tags stripped — `Inception.2010.1080p.BluRay` → `Inception`, `2010`; `Blade.Runner.2049.2017.1080p` → `Blade Runner 2049`, `2017`; `1917.2019.720p` → `1917`, `2019`. The proposal reports `source` = `nfo` / `name` / `nfo+name` so the user can judge it. If the format uses `{year}` and no year is known, the item is **Blocked** — never emit `Title ()`.
+**Value sources:** NFO `title`/`year` are authoritative per field when present; otherwise they are parsed from the folder name (then the video file stem) by `reorganize.parse_name`, which also understands scene names: dots/underscores → spaces (an underscore always becomes a space, also in names that contain spaces — it usually replaced a `:`, `Jurassic World_ Fallen Kingdom (2018)` → `Jurassic World Fallen Kingdom`), a bare `19xx`/`20xx` year (not at the start, not after a quality tag, not in the future), quality tags stripped — `Inception.2010.1080p.BluRay` → `Inception`, `2010`; `Blade.Runner.2049.2017.1080p` → `Blade Runner 2049`, `2017`; `1917.2019.720p` → `1917`, `2019`. The proposal reports `source` = `nfo` / `name` / `nfo+name` so the user can judge it. If the format uses `{year}` and no year is known, the item is **Blocked** — never emit `Title ()`.
 **Title sanitizing:** before expansion the title is trimmed and passed through the **Sanitize rule** — `Alien: Covenant` → `Alien - Covenant (2017)`, `Face/Off` → `FaceOff (1997)`.
 
 **Validation (on save):**
@@ -159,7 +159,7 @@ A **Reorganize** button in the top toolbar (next to Rescan/Settings). Opening it
 ### Reorganize Dialog
 
 ```
-Reorganize — 14 proposals, 3 blocked, 412 compliant          [location filter ▾]
+Reorganize — 14 proposals, 3 blocked, 412 compliant          (scope = left-bar filters, no dropdown)
 
 [All] [None]                                              ☑ dry run (default on)
 
@@ -174,10 +174,11 @@ Reorganize — 14 proposals, 3 blocked, 412 compliant          [location filter 
 - **Editable proposal** — **two text inputs per row: folder name and file name** (stem; extension kept). A per-row **“= folder”** toggle keeps the file name identical to the folder name (default from `file_equals_folder`), and file renaming can be switched off per row (or globally via `rename_files`). Editing re-runs the single-component validation and the conflict check live. An expander per row shows the exact resulting operations (folder / file / sidecars / NFO / images / sanitize).
 - **Sanitize entries** — listed in the row's expander with their own checkbox (current → sanitized name, followers shown); a “Parent folders” group holds the folders above the items. A header counter shows the number of sanitize entries.
 - **Several NFOs** — a per-row choice *use the best* / *delete all* / *leave as is*, preset to **leave as is**; the NFO list shows each file's quality so the user can judge.
-- **Images** — image deletion is its own tickable entry per row, so it is approved separately from creating the folder.
-- **Select all / none / individual** — per-row checkboxes; conflict rows unchecked by default (same convention as the Organize Dialog).
-- **Dry run** — checked by default (repo convention). "Preview" returns per-row results without touching disk; unticking and clicking "Do it" executes.
-- **Execution** — sequential, with a progress state per row (pending → done/failed + reason). No rollback; already-completed rows stay done ([ADR 0003](../adr/0003-cancel-no-rollback-delete-partial-files.md) precedent). On completion, prompt to run a Basic Scan (same pattern as "Use transcoded video").
+- **Images** — image deletion is its own tickable entry per row, so it is approved separately from creating the folder; **unticked by default** (unticked images move into the new folder).
+- **Select all / none / individual** — per-row checkboxes; conflict rows unchecked by default (same convention as the Organize Dialog). The row checkbox ticks everything the row suggests (approving conflicts) and completes a partly ticked row. The several-NFOs choice always starts at *leave as is* and is only changed by the user — never by the row checkbox or All. Edited folder and file names are checked live against the other ticked rows and the scanned library. With a folder conflict the “= folder” toggle starts off, so a “(1)” folder name does not reach the video name.
+- **Potential duplicates** — rows of items in a duplicate group are marked, and a panel below the rows asks whether to leave them out of the default selection and All (default) — with a *Select N duplicate(s)* button only in that case — or include them; *Show duplicates* switches to the Duplicates filter. Renaming a duplicate before resolving it gets in the way of the duplicate search.
+- **Dry run** — checked by default (repo convention). "Preview" returns per-row results without touching disk; unticking and clicking "Do it" asks for confirmation **inside the dialog** (no browser popup), then executes.
+- **Execution** — sequential, with a progress state per row (pending → done/failed + reason, with the exact operations). No rollback; already-completed rows stay done ([ADR 0003](../adr/0003-cancel-no-rollback-delete-partial-files.md) precedent). **Working in steps:** done rows stay ticked and are locked for good; failed rows can be selected again; the rest of the dialog stays usable. After an execution a **Rescan now** button is offered (the server does not update the library).
 - **Settings hint** — a footer link: "Naming format: `{title} ({year})` — change in Settings".
 
 ### API

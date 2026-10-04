@@ -6,3 +6,4 @@ py/ui/__pycache__/
 web/cache
 web/cache/
 web/cache/**
+py/test/_tmp*/

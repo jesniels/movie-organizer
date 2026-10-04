@@ -13,6 +13,12 @@ A pure-Python toolset for organizing movie/series files for Jellyfin media libra
 
 - Always run CLI tools from the project root.
 - Do not start the UI application for testing, this is done by the user
+- **No non-Python tooling — not even for a quick check.** Never run Node.js, npm/npx or any other non-Python tool (e.g. `node --check` on a script in `web/static/js/`). Checks and tests are written in Python and run with the venv's interpreter.
+- **Never write outside the workspace.** No files in system temp folders or scratch directories outside the repo. Test programs and their temporary files live in `py/test/` (temporary folders named `py/test/_tmp*`, removed by the test and ignored by git).
+- **Ask before deciding for the user.** When a request leaves a real choice open, explain the options and ask before changing code; when told to only explain or document something, do not change code.
+- **No browser popups** (`alert`/`confirm`/`prompt`) in new UI code — confirmations happen inside the dialog.
+- Do not use node or npm. This is a python project!
+- Do not introduce other frontend frameworks or build tools; stick to vanilla JS, Bootstrap, and Jinja2 templates.
 
 ## Virtual environment
 
@@ -34,7 +40,8 @@ A pure-Python toolset for organizing movie/series files for Jellyfin media libra
 | `py/test` | Folder for all test and unittest python programs. |
 | `web/config.yaml` | UI configuration: library `locations` and `downloads` folders. |
 | `web/cache/` | Cached JSON scans of libraries/downloads. |
-| `web/static/`, `web/templates/` | Front-end assets (JS/CSS) and Jinja2 templates. |
+| `web/static/`, `web/templates/` | Front-end assets (CSS, Bootstrap) and Jinja2 templates. |
+| `web/static/js/` | Front-end JavaScript, one classic script per feature, loaded in the order of `UI_SCRIPTS` in `py/ui/app.py` (see ADR 0004). |
 | `docs/` | Solution design, organization docs, and ADRs (`docs/adr/`). |
 | `docs/APPLICATION-RISKS.md` | Data-loss risk register: every file-changing operation, its safeguard, and open risks. |
 | `docs/transcoding/` | Transcoding feature spec and implementation plan. |
@@ -50,6 +57,7 @@ A pure-Python toolset for organizing movie/series files for Jellyfin media libra
 - Jellyfin conventions apply: `Title (Year)` folder naming, images deleted from source (Jellyfin regenerates them). NFOs named `movie.nfo` or after the video (`<video>.nfo`) work for Jellyfin and are never renamed by the web UI (a `<video>.nfo` only follows its video when the video is renamed); the web UI never creates or renames to `movie.nfo`. Only the CLI `movie-organizer.py` still renames to `movie.nfo`.
 - The web UI never changes files on its own: every rename/move/delete is suggested, selected by the user and executed explicitly (dry run by default).
 - Consult `docs/organization/CONTEXT.md` and the ADRs before changing organize/scan behavior.
+- Front-end JS (ADR 0004): put code in the feature's file in `web/static/js/`, with its event wiring in that file's `DOMContentLoaded` handler. Only state and helpers shared by several features go in `core.js`. A new file must be added to `UI_SCRIPTS` in `py/ui/app.py`. Top-level names must be unique across all files. Run `py/test/test_static_js.py` after changing the scripts.
 - make sure new functions are documented and follow the established conventions.
 - if possible and it makes sense, make sure function parameters and return values are typed.
 
