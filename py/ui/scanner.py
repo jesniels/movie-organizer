@@ -17,6 +17,7 @@ from .settings import (
     VIDEO_EXTS,
     YEAR_RE,
     _clean_title,
+    enabled_paths,
     fs_path,
     load_config,
     log,
@@ -89,13 +90,31 @@ def _missing_episodes(episodes: Dict[int, List[int]]) -> Dict[int, List[int]]:
     return result
 
 
+# Jellyfin extras folder names: videos in these belong to the movie folder they sit in.
+EXTRAS_DIR_NAMES = frozenset({
+    "extras", "featurettes", "trailers", "behind the scenes", "deleted scenes", "interviews",
+    "scenes", "samples", "sample", "shorts", "clips", "other",
+})
+
+
+def _has_movie_subfolder(children: List[Path]) -> bool:
+    """True when a subfolder that is not a season or extras folder holds videos (it is its own item)."""
+    return any(
+        _is_dir(c) and c.name.strip().lower() not in EXTRAS_DIR_NAMES and not _is_season_dir(c)
+        and _video_files(c)
+        for c in children
+    )
+
+
 def _is_leaf_folder(entry: Path) -> bool:
     """
     True when this directory is itself a movie or series folder.
-    False when it is a grouping/category folder that should be descended into.
+    False when it is a grouping/category folder (Bundle) that should be descended into.
 
     Rules (in order):
-      1. Contains at least one video file directly → leaf (movie or flat-episode series).
+      1. Contains at least one video file directly → leaf (movie or flat-episode series),
+         unless it also has movie subfolders: then it is a Bundle and its own videos are
+         Loose Files (R-13).
       2. Contains at least one Season-named subdirectory → leaf (series with season folders).
       3. Otherwise → grouping folder; recurse into it.
     """
@@ -104,7 +123,7 @@ def _is_leaf_folder(entry: Path) -> bool:
     except PermissionError:
         return False
     if any(f.is_file() and f.suffix.lower() in VIDEO_EXTS for f in children):
-        return True
+        return not _has_movie_subfolder(children)
     if any(_is_season_dir(f) for f in children):
         return True
     return False
@@ -252,9 +271,9 @@ def _nested_locations(path: str, all_paths: List[str]) -> frozenset:
 
 
 def _location_entries(config: Dict[str, Any]) -> List[Tuple[str, str]]:
-    """(path, location_type) for every configured location, incl. the transcode output folder."""
-    entries = ([(p, "library") for p in config.get("locations", []) if p]
-               + [(p, "download") for p in config.get("downloads", []) if p])
+    """(path, location_type) for every enabled location, incl. the transcode output folder."""
+    entries = ([(p, "library") for p in enabled_paths(config, "locations")]
+               + [(p, "download") for p in enabled_paths(config, "downloads")])
     root = transcoded_root(config)
     conflict = transcoded_root_conflict(config)
     if conflict:
@@ -262,6 +281,11 @@ def _location_entries(config: Dict[str, Any]) -> List[Tuple[str, str]]:
     elif root:
         entries.append((root, "transcoded"))
     return entries
+
+
+def _nesting_paths(config: Dict[str, Any]) -> List[str]:
+    """All configured folders, disabled ones too — a disabled folder inside another stays out of its scan."""
+    return [p for p in config.get("locations", []) + config.get("downloads", []) + [transcoded_root(config)] if p]
 
 
 # ── Cache persistence ─────────────────────────────────────────────────────────
@@ -492,7 +516,7 @@ def run_scan(_ignored_config: Any = None) -> None:
         dl:  List[Dict[str, Any]] = []
         tr:  List[Dict[str, Any]] = []
         buckets = {"library": lib, "download": dl, "transcoded": tr}
-        all_paths = [e["path"] for e in loc_entries]
+        all_paths = _nesting_paths(config)
         for entry in loc_entries:
             if entry["status"] == "missing":
                 continue
@@ -541,7 +565,7 @@ def refresh_transcoded() -> None:
             return
     items: List[Dict[str, Any]] = []
     if root and Path(root).is_dir():
-        all_paths = [p for p, _ in _location_entries(config)]
+        all_paths = _nesting_paths(config)
         items = scan_path(Path(root), "transcoded", _nested_locations(root, all_paths))
         _save_location_cache(root, "transcoded", items, datetime.now().isoformat())
     with _lock:
@@ -556,3 +580,16 @@ def recompute_status() -> None:
     status = _compute_status(lib, dl, tr)
     with _lock:
         _state["status"] = status
+
+
+def reload_if_locations_changed(before: List[Tuple[str, str]], config: Dict[str, Any]) -> None:
+    """After a config save: rebuild the item lists from the caches when locations were enabled/disabled/changed."""
+    if _location_entries(config) == before:
+        return
+    with _lock:
+        if _state["scanning"]:
+            return   # the running scan uses the old config; the next scan picks up the change
+    if not _load_all_caches(config):
+        with _lock:
+            _state["library"], _state["downloads"], _state["transcoded"] = [], [], []
+        recompute_status()

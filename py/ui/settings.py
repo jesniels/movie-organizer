@@ -6,7 +6,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -60,6 +60,7 @@ DEFAULT_NAMING: Dict[str, Any] = {
 DEFAULT_CONFIG: Dict[str, Any] = {
     "locations": [],
     "downloads": [],
+    "disabled_paths": [],    # locations/downloads kept in the config but ignored everywhere else
     "server_mode": False,
     "local_shares": {},
     "transcode": dict(DEFAULT_TRANSCODE),
@@ -107,6 +108,16 @@ def transcoded_root_conflict(config: Dict[str, Any]) -> Optional[str]:
 def safe_transcoded_root(config: Dict[str, Any]) -> str:
     """The output folder, or '' when unset or overlapping a library/download folder."""
     return "" if transcoded_root_conflict(config) else transcoded_root(config)
+
+
+def _path_key(path: str) -> str:
+    return os.path.normcase(os.path.normpath(path.strip()))
+
+
+def enabled_paths(config: Dict[str, Any], key: str) -> List[str]:
+    """The configured ``locations`` or ``downloads`` that are not switched off in ``disabled_paths``."""
+    disabled = {_path_key(p) for p in config.get("disabled_paths") or [] if p}
+    return [p for p in config.get(key, []) if p and _path_key(p) not in disabled]
 
 
 def map_to_local(config: Dict[str, Any], path: str) -> Optional[str]:
@@ -235,6 +246,8 @@ def load_config() -> Dict[str, Any]:
     cfg["server_mode"]  = bool(cfg.get("server_mode"))
     ls = cfg.get("local_shares")
     cfg["local_shares"] = ls if isinstance(ls, dict) else {}
+    dp = cfg.get("disabled_paths")
+    cfg["disabled_paths"] = [p for p in dp if isinstance(p, str) and p.strip()] if isinstance(dp, list) else []
     return cfg
 
 

@@ -12,9 +12,11 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .duplicates import _load_not_duplicates, mark_not_duplicate, remove_not_duplicate_pairs
 from .fileops import delete_items, file_info, move_items, play_item, rename_item
@@ -38,11 +40,12 @@ from .models import (
 from .nfo import copy_nfo, read_nfo
 from .reorganize import analyse as reorganize_analyse
 from .reorganize import apply_changes as reorganize_apply
-from .scanner import _all_locations_cached, _load_all_caches, run_scan
+from .scanner import _all_locations_cached, _load_all_caches, _location_entries, reload_if_locations_changed, run_scan
 from .settings import (
     STATIC_DIR,
     TEMPLATES_DIR,
     _write_config,
+    enabled_paths,
     load_config,
     log,
     naming_error,
@@ -85,6 +88,13 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
+@app.exception_handler(StarletteHTTPException)
+async def log_http_error(request: Request, exc: StarletteHTTPException):
+    """Log why a request failed (uvicorn's access log only shows the status code)."""
+    log.warning("%s %s → %d: %s", request.method, request.url.path, exc.status_code, exc.detail)
+    return await http_exception_handler(request, exc)
+
+
 # Front-end scripts in web/static/js/, in load order. They are classic scripts sharing one global
 # scope: core.js first (shared state and helpers), main.js last (startup calls).
 UI_SCRIPTS: List[str] = [
@@ -115,6 +125,12 @@ async def index(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context=context)
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    """Serve the film-strip icon for browsers that request /favicon.ico directly."""
+    return FileResponse(STATIC_DIR / "favicon.svg", media_type="image/svg+xml")
+
+
 # ── Config API ─────────────────────────────────────────────────────────────────
 @app.get("/api/config")
 def api_get_config():
@@ -130,8 +146,13 @@ def api_save_config(body: ConfigBody):
         cfg = load_config()
     except SystemExit:
         raise HTTPException(500, "Config file is invalid. Check server logs for details.")
+    entries_before = _location_entries(cfg)
     cfg["locations"] = body.locations
     cfg["downloads"] = body.downloads
+    if body.disabled_paths is not None:
+        configured = {os.path.normcase(os.path.normpath(p)) for p in body.locations + body.downloads if p}
+        cfg["disabled_paths"] = [p.strip() for p in body.disabled_paths
+                                 if p.strip() and os.path.normcase(os.path.normpath(p.strip())) in configured]
     if body.transcode is not None:
         cfg["transcode"] = body.transcode.model_dump()
     if body.naming is not None:
@@ -149,14 +170,16 @@ def api_save_config(body: ConfigBody):
     if conflict:
         raise HTTPException(400, conflict)
     _write_config(cfg)
+    reload_if_locations_changed(entries_before, cfg)
     tc = cfg["transcode"]
-    log.info("Config saved: %d location(s), %d download(s), server_mode=%s, %d local share(s); "
+    log.info("Config saved: %d location(s), %d download(s), %d disabled, server_mode=%s, %d local share(s); "
              "transcode ffmpeg=%r ffprobe=%r output=%r",
-             len(cfg["locations"]), len(cfg["downloads"]),
+             len(cfg["locations"]), len(cfg["downloads"]), len(cfg["disabled_paths"]),
              cfg.get("server_mode"), len(cfg.get("local_shares") or {}),
              tc.get("ffmpeg_path"), tc.get("ffprobe_path"), tc.get("output_root"))
     return {"ok": True, "transcode": tc, "naming": cfg["naming"],
-            "server_mode": cfg["server_mode"], "local_shares": cfg["local_shares"]}
+            "server_mode": cfg["server_mode"], "local_shares": cfg["local_shares"],
+            "disabled_paths": cfg["disabled_paths"]}
 
 
 # ── Scan API ───────────────────────────────────────────────────────────────────
@@ -232,8 +255,8 @@ def _remember_move_target(target: str) -> None:
     """
     cfg = load_config()
     key = os.path.normcase(os.path.normpath(target))
-    match = next((p for p in cfg.get("locations", []) + cfg.get("downloads", [])
-                  if p and os.path.normcase(os.path.normpath(p)) == key), None)
+    match = next((p for p in enabled_paths(cfg, "locations") + enabled_paths(cfg, "downloads")
+                  if os.path.normcase(os.path.normpath(p)) == key), None)
     if match and cfg.get("last_move_target") != match:
         cfg["last_move_target"] = match
         try:

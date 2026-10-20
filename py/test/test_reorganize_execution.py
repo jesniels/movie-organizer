@@ -123,6 +123,10 @@ def run(t: Tree) -> None:
     t.mk("lib/Alien (1979)/Alien (1979).mkv")
     t.mk("lib/Alien (1979)/movie.nfo", FULL_NFO)
     t.mk("lib/Alien (1979)/other.nfo", POOR_NFO)
+    amistad_nfo = "<movie><title>Amistad</title><year>1997</year><plot>p</plot></movie>"
+    t.mk("lib/Amistad (1997)/Amistad (1997).mkv")
+    t.mk("lib/Amistad (1997)/Amistad (1997).nfo", amistad_nfo)
+    t.mk("lib/Amistad (1997)/movie.nfo", amistad_nfo)
     t.mk("lib/GoldenEye (1995)/GoldenEye (1995).mkv")
     t.mk("lib/goldeneye.1995/goldeneye.1995.mkv")
     t.mk("lib/Marvel /Iron Man (2008)/Iron Man (2008).mkv")
@@ -142,6 +146,10 @@ def run(t: Tree) -> None:
     analysis = reorganize.analyse(t.ids())
     print(f"analysed {analysis['analysed_count']}, proposals {len(analysis['proposals'])}, "
           f"blocked {len(analysis['blocked'])}, parents {len(analysis['parent_folders'])}")
+    check("movie.nfo + <video>.nfo of equal quality is compliant",
+          not any(os.path.basename(p["item_id"]) == "Amistad (1997)" for p in analysis["proposals"]))
+    check("movie.nfo + other.nfo still offers the NFO choice",
+          any(os.path.basename(p["item_id"]) == "Alien (1979)" and p["nfos"] for p in analysis["proposals"]))
     changes = full_changes(analysis)
 
     # ── Guards before anything runs ────────────────────────────────────────────

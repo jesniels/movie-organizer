@@ -51,6 +51,7 @@ class ConfigBody(BaseModel):
     naming:    Optional[NamingConfig] = None       # None → leave unchanged (older frontend)
     server_mode:  Optional[bool] = None            # None → leave unchanged (older frontend)
     local_shares: Optional[Dict[str, str]] = None  # server path → local share path
+    disabled_paths: Optional[List[str]] = None     # None → leave unchanged (older frontend)
 
 
 class TranscodeToolsBody(BaseModel):

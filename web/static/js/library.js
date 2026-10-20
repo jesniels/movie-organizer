@@ -104,8 +104,6 @@ async function fetchLibrary() {
     allItems = await api('GET', '/api/library');
     renderLocationFilters();   // the Transcoded group only shows once it has items
     applyFilters();
-    // Refresh the NFO count in the sidebar if status is already loaded
-    if (lastStatus) renderStatusPanel(lastStatus);
   } catch (e) {
     showToast('Failed to load library: ' + e.message, 'danger');
   }
@@ -149,7 +147,6 @@ function _buildDuplicateMap(status) {
 function toggleSpecialFilter(filter) {
   activeSpecialFilter = (activeSpecialFilter === filter) ? null : filter;
   if (activeSpecialFilter !== 'duplicates') transcodedDupOnly = false;
-  if (lastStatus) renderStatusPanel(lastStatus);
   applyFilters();
 }
 
@@ -173,7 +170,6 @@ function quickFilter(location, type) {
   document.getElementById('search-input').value = '';
   activeSpecialFilter = null;
   transcodedDupOnly = false;
-  if (lastStatus) renderStatusPanel(lastStatus);
   applyFilters();
 }
 
@@ -218,8 +214,8 @@ function _transcodedRoots() {
 }
 
 const _LOC_GROUPS = [
-  { key: 'library',    label: 'Library',    badge: 'bg-success-subtle text-success-emphasis', roots: () => configCache.locations || [] },
-  { key: 'download',   label: 'Downloads',  badge: 'bg-warning-subtle text-warning-emphasis', roots: () => configCache.downloads || [] },
+  { key: 'library',    label: 'Library',    badge: 'bg-success-subtle text-success-emphasis', roots: () => (configCache.locations || []).filter(pathEnabled) },
+  { key: 'download',   label: 'Downloads',  badge: 'bg-warning-subtle text-warning-emphasis', roots: () => (configCache.downloads || []).filter(pathEnabled) },
   { key: 'transcoded', label: 'Transcoded', badge: 'bg-primary-subtle text-primary-emphasis', roots: _transcodedRoots,
     shortNames: true, onlyWithItems: true },
 ];
@@ -311,18 +307,23 @@ function _locVisible(item) {
 }
 
 // ── Filters ───────────────────────────────────────────────────────────────────
-function applyFilters() {
+// Items passing the location, type and search filters (before any special filter)
+function _baseFilteredItems() {
   const showMov  = document.getElementById('f-movies').checked;
   const showSer  = document.getElementById('f-series').checked;
   const q        = document.getElementById('search-input').value.toLowerCase().trim();
 
-  filteredItems = allItems.filter(item => {
+  return allItems.filter(item => {
     if (!_locVisible(item))                        return false;
     if (!showMov && item.type === 'movie')         return false;
     if (!showSer && item.type === 'series')        return false;
     if (q && !item.title.toLowerCase().includes(q) && !item.folder.toLowerCase().includes(q)) return false;
     return true;
   });
+}
+
+function applyFilters() {
+  filteredItems = _baseFilteredItems();
 
   // Special filters (mutually exclusive, applied after normal filters)
   if (activeSpecialFilter === 'duplicates') {
@@ -343,6 +344,7 @@ function applyFilters() {
   renderItems();
   document.getElementById('item-count').textContent = `${filteredItems.length} item(s)`;
   _updateSelectTranscodedBtn();
+  if (lastStatus) renderStatusPanel(lastStatus);   // Incomplete NFO count follows the filters
 }
 
 function _updateSelectTranscodedBtn() {
@@ -492,8 +494,8 @@ function renderStatusPanel(status) {
                   + (status.duplicate_series  || []).length;
   const missCount = (status.missing_episodes  || []).length;
 
-  // Count items with incomplete/absent NFO from the already-loaded library
-  const incompleteNfoCount = allItems.filter(i => (i.nfo_quality || 'none') !== 'full').length;
+  // Items with incomplete/absent NFO among those the location/type/search filters show
+  const incompleteNfoCount = _baseFilteredItems().filter(i => (i.nfo_quality || 'none') !== 'full').length;
 
   const sfDup  = activeSpecialFilter === 'duplicates';
   const sfNfo  = activeSpecialFilter === 'missing-nfo';

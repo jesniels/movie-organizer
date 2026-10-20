@@ -374,7 +374,11 @@ def _analyse_movie_folder(item: Dict[str, Any], naming: Dict[str, Any], planned:
         if main and naming.get("resolve_nfos"):
             nfos = [n for n in top if n.lower().endswith(".nfo")]
             if len(nfos) > 1:
-                prop["nfos"] = _nfo_choice(folder, nfos, old_stem, final_stem)
+                choice = _nfo_choice(folder, nfos, old_stem, final_stem)
+                # movie.nfo + <video>.nfo of equal quality is the pair Jellyfin writes itself — nothing to resolve
+                jellyfin_pair = {n.lower() for n in nfos} == {"movie.nfo", (old_stem + ".nfo").lower()}
+                if not (jellyfin_pair and choice["best"] is None):
+                    prop["nfos"] = choice
             elif nfos:
                 n = nfos[0]
                 follows_video = prop["file"] and any(f["from"] == n for f in prop["file"]["follows"])

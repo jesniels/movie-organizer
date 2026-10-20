@@ -24,7 +24,7 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 | R-10 | A transcode could delete an existing output file | Transcoding | Fixed |
 | R-11 | A failed "Use transcoded video" could lose the transcoded file | Transcoding | Fixed |
 | R-12 | NFO field copy wiped an unparsable target NFO | NFO | Fixed |
-| R-13 | Collection folders are scanned as one movie | Scanner / Delete | **Open** (warning only) |
+| R-13 | Collection folders are scanned as one movie | Scanner / Delete | Fixed |
 | R-14 | Whole-file NFO copy overwrites without backup or dry run | NFO | **Open** |
 | R-15 | Renaming a multi-video movie renames extras too | Rename | **Open** (dry run shows it) |
 | R-16 | Items under names ending with a space/dot: Move/Rename/Delete may fail | Scanner / file ops | **Open** (fails safely) |
@@ -36,6 +36,8 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 | R-22 | Reorganize sanitize could reach outside the library or change names unexpectedly | Reorganize | Guarded |
 | R-23 | A Reorganize item can stop half-way (no rollback) | Reorganize | **Open** (reported) |
 | R-24 | After Reorganize the library shows old paths until a rescan | Reorganize | **Open** (fails safely) |
+| R-25 | Deleting a loose file could take sidecars another video still uses | Delete | Guarded |
+| R-26 | Moving a loose file left its sidecars behind / could take or overwrite others' sidecars | Move | Guarded |
 
 ---
 
@@ -94,6 +96,17 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 - **What happened:** "copy selected fields" into an NFO that is not valid XML started a fresh NFO with only the copied fields, discarding the rest.
 - **Guard:** the merge refuses an unparsable target (fix it, or use whole-file copy).
 
+### R-25 — Delete of a loose file and its sidecars (2026-10-20)
+- **Behaviour:** deleting a loose-file item (Delete dialog, or the trash button per copy in the duplicate compare window) also deletes its exact-stem sidecars — NFO, images, subtitles (`reorganize.related_files`, R-09 rule). A folder item is deleted as a whole, as before.
+- **Risk:** two videos with the same stem in one folder (`Movie.mkv` + `Movie.avi`, a typical duplicate) share `Movie.nfo`; deleting one copy would take the other copy's NFO.
+- **Guard:** `fileops._own_sidecars` skips every sidecar that also belongs to another video in the folder. Sidecars are only deleted after the video itself was deleted. The dry run lists every sidecar (`also`); failed sidecar deletes are reported as a warning.
+- **After the delete:** deleted items are dropped from memory and duplicates recomputed (`state.forget_items`), so a copy left alone is no longer flagged; a rescan follows.
+
+### R-26 — Move of a loose file and its sidecars (2026-10-20)
+- **What happened:** Move of a loose-file item moved only the video; its NFO, images and subtitles stayed in the download folder.
+- **Behaviour:** a loose file now takes its own exact-stem sidecars along (`fileops._own_sidecars`, same rule as R-25); a sidecar shared with another video in the folder stays. A folder item moves as a whole, as before.
+- **Guard:** every sidecar gets the video's checks — destination must not exist (R-03), not claimed by another item in the batch, not read-only, counted in the free-space check. Sidecars are moved only after the video arrived, each re-checked for an existing destination right before; a failed sidecar move leaves it in the source folder and is reported as a warning (the result dialog opens instead of the success toast). The dry run lists every sidecar (`also`).
+
 ---
 
 ## Reorganize — guarded operations (2026-10-04)
@@ -121,12 +134,12 @@ Reorganize ([design](reorganizing/REORGANIZE-DESIGN.md)) creates folders for loo
 ### R-22 — Sanitize scope and result
 - **Guard:** only paths inside configured locations/downloads (`_scope`); only paths the server's own re-analysis produced; target recomputed with `sanitize_component` (never a client name); empty results blocked; deepest paths first, Parent folders after all items. Names ending with a space/dot are reached via the `\\?\` prefix (`fs_path`). After a Parent folder is renamed, the dialog locks the rows below it ("rescan and refresh first") because their paths changed.
 
-## Open risks
-
 ### R-13 — Collection folders are scanned as one movie
-- **Risk:** a folder that directly contains even one video (e.g. `Marvel\trailer.mkv` next to `Marvel\Iron Man (2008)\...`) is treated as a single movie, and all videos in its subfolders count as that movie's files. Deleting or moving it acts on the whole collection.
-- **Current mitigation:** the Delete dialog shows a red warning when a movie folder contains more than one video file.
-- **Proper fix:** change how the scanner treats such folders. Must be agreed against [organization/CONTEXT.md](organization/CONTEXT.md) and the ADRs first.
+- **What happened:** a folder that directly contains even one video (e.g. `Netflix\The Guns of Navarone (1961).mkv` next to `Netflix\Fury (2014)\...`) was treated as a single movie, and all videos in its subfolders counted as that movie's files. Rename, Delete or Move acted on the whole collection.
+- **Guard (2026-10-20):** `scanner._is_leaf_folder` treats such a folder as a Bundle when a subfolder holds videos and is not a season folder or a Jellyfin extras folder (`EXTRAS_DIR_NAMES`). Its own videos become Loose Files; each subfolder is scanned as its own item. Test: `py/test/test_scanner_bundles.py`.
+- **Still in place:** the Delete dialog shows a red warning when a movie folder contains more than one video file.
+
+## Open risks
 
 ### R-14 — Whole-file NFO copy overwrites without backup or dry run
 - **Risk:** copying a whole NFO replaces the target NFO permanently (hand-edited metadata is lost). Only the field-picker confirmation protects it.

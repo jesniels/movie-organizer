@@ -20,8 +20,9 @@ async function loadSettings() {
     renderLocationFilters();
     document.getElementById('server-mode-check').checked = !!cfg.server_mode;
     const shares = cfg.local_shares || {};
-    renderPathList('locations-list', 'locations', (cfg.locations || []).map(p => ({ path: p, share: _shareFor(shares, p) })));
-    renderPathList('downloads-list', 'downloads', (cfg.downloads || []).map(p => ({ path: p, share: _shareFor(shares, p) })));
+    const toRows = paths => (paths || []).map(p => ({ path: p, share: _shareFor(shares, p), enabled: pathEnabled(p) }));
+    renderPathList('locations-list', 'locations', toRows(cfg.locations));
+    renderPathList('downloads-list', 'downloads', toRows(cfg.downloads));
     _fillTranscodeSettings(cfg.transcode);
     _fillNamingSettings(cfg.naming);
     document.getElementById('tc-output-share').value = _shareFor(shares, ((cfg.transcode || {}).output_root || ''));
@@ -124,8 +125,13 @@ function renderPathList(containerId, type, rows) {
   document.getElementById(containerId).innerHTML = rows.map((r, i) => `
     <div class="mb-2">
       <div class="input-group input-group-sm">
-        <input type="text" class="form-control bg-dark text-light border-secondary font-monospace path-input"
+        <input type="text" class="form-control bg-dark text-light border-secondary font-monospace path-input${r.enabled === false ? ' opacity-50' : ''}"
                data-type="${type}" data-index="${i}" value="${esc(r.path)}">
+        <span class="input-group-text bg-dark border-secondary"
+              title="Enabled — untick to ignore this path everywhere (not scanned, not shown); it stays in the configuration">
+          <input class="form-check-input mt-0 path-enabled" type="checkbox" data-type="${type}" data-index="${i}"
+                 ${r.enabled === false ? '' : 'checked'} onchange="togglePathEnabled(this)">
+        </span>
         <button class="btn btn-outline-danger" type="button" onclick="removePath('${type}',${i})">
           <i class="bi bi-x"></i>
         </button>
@@ -140,17 +146,24 @@ function renderPathList(containerId, type, rows) {
     </div>`).join('');
 }
 
-// Current {path, share} rows of a path list, read from the DOM
+// Current {path, share, enabled} rows of a path list, read from the DOM
 function _readPathRows(type) {
   return [...document.querySelectorAll(`.path-input[data-type="${type}"]`)].map(inp => ({
-    path:  inp.value,
-    share: document.querySelector(`.local-share-input[data-share-type="${type}"][data-index="${inp.dataset.index}"]`)?.value || '',
+    path:    inp.value,
+    share:   document.querySelector(`.local-share-input[data-share-type="${type}"][data-index="${inp.dataset.index}"]`)?.value || '',
+    enabled: document.querySelector(`.path-enabled[data-type="${type}"][data-index="${inp.dataset.index}"]`)?.checked ?? true,
   }));
+}
+
+/** Dim the path input of a row whose "enabled" checkbox was toggled. */
+function togglePathEnabled(cb) {
+  document.querySelector(`.path-input[data-type="${cb.dataset.type}"][data-index="${cb.dataset.index}"]`)
+    ?.classList.toggle('opacity-50', !cb.checked);
 }
 
 function addPath(type) {
   const rows = _readPathRows(type);
-  rows.push({ path: '', share: '' });
+  rows.push({ path: '', share: '', enabled: true });
   renderPathList(type + '-list', type, rows);
   // focus new input
   const all = document.querySelectorAll(`.path-input[data-type="${type}"]`);
@@ -167,6 +180,7 @@ async function saveSettings(rescan) {
   const dlRows  = _readPathRows('downloads');
   const locations = locRows.map(r => r.path.trim()).filter(Boolean);
   const downloads = dlRows.map(r => r.path.trim()).filter(Boolean);
+  const disabled_paths = [...locRows, ...dlRows].filter(r => !r.enabled && r.path.trim()).map(r => r.path.trim());
   const transcode = _readTranscodeSettings();
   const server_mode = document.getElementById('server-mode-check').checked;
   const local_shares = {};
@@ -191,12 +205,13 @@ async function saveSettings(rescan) {
     return;
   }
   try {
-    const res = await api('POST', '/api/config', { locations, downloads, transcode, naming, server_mode, local_shares });
-    if (!res.transcode || !res.naming) {
+    const res = await api('POST', '/api/config', { locations, downloads, disabled_paths, transcode, naming, server_mode, local_shares });
+    if (!res.transcode || !res.naming || !res.disabled_paths) {
       showToast('Paths saved, but the server did NOT save all settings — the running server is older than this page. Restart it and save again.', 'danger');
       return;
     }
-    configCache = { locations, downloads, transcode: res.transcode, naming: res.naming, server_mode, local_shares };
+    configCache = { locations, downloads, disabled_paths: res.disabled_paths, transcode: res.transcode, naming: res.naming,
+                    server_mode, local_shares, last_move_target: configCache.last_move_target };
     renderLocationFilters();
     applyFilters();
     getModal('settingsModal').hide();
@@ -205,6 +220,9 @@ async function saveSettings(rescan) {
       triggerScan();
     } else {
       showToast('Settings saved.', 'success');
+      // The server reloads its item lists when paths were enabled/disabled
+      await fetchLibrary();
+      await fetchStatus();
     }
   } catch (e) {
     showToast('Save failed: ' + _apiErr(e), 'danger');

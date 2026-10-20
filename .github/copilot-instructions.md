@@ -17,6 +17,7 @@ A pure-Python toolset for organizing movie/series files for Jellyfin media libra
 - **Never write outside the workspace.** No files in system temp folders or scratch directories outside the repo. Test programs and their temporary files live in `py/test/` (temporary folders named `py/test/_tmp*`, removed by the test and ignored by git).
 - **Ask before deciding for the user.** When a request leaves a real choice open, explain the options and ask before changing code; when told to only explain or document something, do not change code.
 - **No browser popups** (`alert`/`confirm`/`prompt`) in new UI code — confirmations happen inside the dialog.
+- **Dialogs return to where the user came from.** A dialog opened from another dialog returns to that dialog when cancelled (Cancel, ×, Esc): open it with `leaveModalFor(parentId, childId)`, close it after its action ran with `closeModalDone(id)`. A dry-run result has a **Back to …** button that reopens the dialog with its input kept: `swapModal(id, () => showResultModal({ …, closeText: 'Back to …', onClose: () => getModal(id).show() }))`. Helpers are in `web/static/js/core.js`.
 - Do not use node or npm. This is a python project!
 - Do not introduce other frontend frameworks or build tools; stick to vanilla JS, Bootstrap, and Jinja2 templates.
 

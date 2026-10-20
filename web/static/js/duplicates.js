@@ -23,6 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const notDupBtn = e.target.closest('[data-notdup-item]');
     if (notDupBtn) {
       markNotDuplicateItem(notDupBtn.dataset.notdupItem);
+      return;
+    }
+    const delBtn = e.target.closest('[data-delete-item]');
+    if (delBtn) {
+      leaveModalFor('compareModal', 'deleteModal');
+      openDeleteDialog([delBtn.dataset.deleteItem]);
     }
   });
 
@@ -122,6 +128,10 @@ function _compareColumn(item, others) {
                 title="This copy is a different title — stop flagging it against the others">
           <i class="bi bi-check2-circle"></i>
         </button>`}
+        <button type="button" class="btn btn-sm btn-outline-danger${others.length === 1 ? ' ms-auto' : ''}"
+                data-delete-item="${esc(item.id)}" title="Delete this copy (opens the Delete dialog, dry run first)">
+          <i class="bi bi-trash"></i>
+        </button>
       </div>
     </div>`;
 }
@@ -155,6 +165,7 @@ async function showCompareModal(itemId) {
       <i class="bi bi-lightbulb me-1"></i>
       Use <strong>Play</strong> to check the videos, <strong>Copy NFO</strong> to transfer metadata,
       or <strong>Not a duplicate</strong> if these are all different titles${groupHint}.
+      <i class="bi bi-trash text-danger"></i> deletes a copy you do not need.
     </div>`;
   const trCopies = group.filter(i => i.location === 'transcoded');
   const useBtn = document.getElementById('compare-use-transcoded-btn');
@@ -239,7 +250,7 @@ function copyNfo(sourceId, targetId) {
       <tbody>${rows}</tbody>
     </table>` : '<div class="text-muted small">Neither NFO has copyable fields.</div>';
 
-  getModal('compareModal').hide();
+  leaveModalFor('compareModal', 'nfoCopyModal');
   getModal('nfoCopyModal').show();
 }
 
@@ -250,7 +261,6 @@ function selectNfoFields(on) {
 function cancelNfoCopy() {
   getModal('nfoCopyModal').hide();
   nfoCopyCtx = null;
-  if (compareIds.length >= 2) showCompareModal(compareIds[0]);
 }
 
 async function confirmNfoCopy() {
@@ -266,7 +276,7 @@ async function confirmNfoCopy() {
       target_id: nfoCopyCtx.targetId,
       fields,
     });
-    getModal('nfoCopyModal').hide();
+    closeModalDone('nfoCopyModal');
     nfoCopyCtx = null;
     showToast(`Copied ${fields.length} NFO field(s) → ${res.to}`, 'success');
     await fetchLibrary();
@@ -329,7 +339,7 @@ function openUseTranscoded() {
     `<option value="${esc(o.id)}" ${o === match ? 'selected' : ''}>[${esc(_locInfo(o.location).label)}] ${esc(o.path)}</option>`
   ).join('');
   document.getElementById('ut-dryrun').checked = true;
-  getModal('compareModal').hide();
+  leaveModalFor('compareModal', 'useTranscodedModal');
   getModal('useTranscodedModal').show();
 }
 
@@ -344,14 +354,16 @@ async function confirmUseTranscoded() {
     const res = await api('POST', '/api/use-transcoded', {
       original_id: originalId, transcoded_id: useTranscodedId, dry_run: dryRun,
     });
-    getModal('useTranscodedModal').hide();
     const lines = (res.changes || []).map(c => c.type === 'replace'
       ? `[replace]  ${c.from}\n       → ${c.to}`
       : `[${c.type}]  ${c.path}`);
     if (dryRun) {
-      showDryRunModal(lines);
+      swapModal('useTranscodedModal', () => showResultModal({
+        lines, closeText: 'Back to Use transcoded', onClose: () => getModal('useTranscodedModal').show(),
+      }));
       return;
     }
+    closeModalDone('useTranscodedModal');
     useTranscodedId = null;
     clearSelection();
     await fetchStatus();

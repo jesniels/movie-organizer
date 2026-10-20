@@ -1,9 +1,11 @@
+disabled_paths:
+- M:\Movies\Itunes
 downloads:
 - M:\Downloaded
 - D:\Downloaded\Netflix
 - D:\Downloaded\Apple TV
 - D:\Downloaded\Disney+
-last_move_target: M:\Movies
+last_move_target: M:\Downloaded
 local_shares: {}
 locations:
 - M:\Movies

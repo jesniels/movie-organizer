@@ -54,9 +54,15 @@ function _deleteRow(i) {
     </div>`;
 }
 
-function openDeleteDialog() {
-  if (selectedIds.size === 0) return;
-  const items = [...selectedIds].map(id => allItems.find(i => i.id === id)).filter(Boolean);
+// True when the Delete dialog was opened from the selection (a real delete then clears it)
+let deleteFromSelection = true;
+
+/** Open the Delete dialog for `ids` (default: the selected items). */
+function openDeleteDialog(ids = null) {
+  deleteFromSelection = !ids;
+  ids = ids || [...selectedIds];
+  if (ids.length === 0) return;
+  const items = ids.map(id => allItems.find(i => i.id === id)).filter(Boolean);
 
   // Partition selection into duplicate groups (≥2 selected copies) and single items
   const byGroup = new Map();
@@ -112,9 +118,23 @@ async function confirmDelete() {
       item_ids: ids,
       dry_run: dryRun,
     });
-    getModal('deleteModal').hide();
-    handleActionResults(results, dryRun, 'delete', 'deleted');
-    if (!dryRun) { clearSelection(); triggerScan(); }
+    if (dryRun) {
+      // Nothing can be deleted: the toast explains it and the dialog stays open
+      if (!results.some(r => r.ok)) return handleActionResults(results, true, 'delete', 'deleted');
+      swapModal('deleteModal', () => handleActionResults(results, true, 'delete', 'deleted', {
+        closeText: 'Back to Delete', onClose: () => getModal('deleteModal').show(),
+      }));
+      return;
+    }
+    closeModalDone('deleteModal');
+    handleActionResults(results, false, 'delete', 'deleted');
+    // Drop deleted items now so a copy left alone in its group stops showing as a duplicate
+    const gone = new Set(results.filter(r => r.ok).map(r => r.id));
+    allItems = allItems.filter(i => !gone.has(i.id));
+    if (deleteFromSelection) clearSelection();
+    await fetchStatus();
+    applyFilters();
+    triggerScan();
   } catch (e) {
     showToast('Delete failed: ' + e.message, 'danger');
   }
@@ -126,7 +146,7 @@ async function confirmDelete() {
  * preselecting the last used destination if it is still configured.
  */
 function fillMoveTargets(cfg) {
-  const all = [...(cfg.locations || []), ...(cfg.downloads || [])].filter(Boolean);
+  const all = [...(cfg.locations || []), ...(cfg.downloads || [])].filter(p => p && pathEnabled(p));
   const sel = document.getElementById('move-target-select');
   sel.innerHTML = '<option value="">— select a configured path —</option>'
     + all.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
@@ -183,7 +203,8 @@ function _moveResultLines(results) {
   const titleOf = id => (allItems.find(i => i.id === id) || {}).title || id;
   const fail = results.filter(r => !r.ok).map(r => `✗ ${titleOf(r.id)}\n  ${r.error}`);
   const ok   = results.filter(r => r.ok).map(r =>
-    `✓ ${r.from}\n  → ${r.to}${r.cross_drive ? `\n  (other drive: copies ${fmtSize(r.size)})` : ''}`);
+    `✓ ${r.from}\n  → ${r.to}${(r.also || []).map(a => `\n  + ${a}`).join('')}`
+    + `${r.cross_drive ? `\n  (other drive: copies ${fmtSize(r.size)})` : ''}${r.warning ? `\n  ⚠ ${r.warning}` : ''}`);
   return [...fail, ...ok];
 }
 
@@ -222,7 +243,7 @@ async function confirmMove() {
   const fail = results.filter(r => !r.ok).length;
   if (ok) {
     // Mirror the server: remember a configured destination for the next Move
-    if ([...(configCache.locations || []), ...(configCache.downloads || [])].includes(target)) {
+    if ([...(configCache.locations || []), ...(configCache.downloads || [])].filter(pathEnabled).includes(target)) {
       configCache.last_move_target = target;
     }
     // Moved items no longer exist at their listed path — drop them now so they
@@ -234,11 +255,13 @@ async function confirmMove() {
     updateSelectionUI();
     triggerScan();
   }
-  if (!fail && !aborted) {
+  const warned = results.filter(r => r.warning).length;
+  if (!fail && !aborted && !warned) {
     afterMoveModalHidden(() => showToast(`moved: ${ok} item(s)`, 'success'));
     return;
   }
   let status = `Moved ${ok} of ${ids.length} item(s). ${fail} failed.`;
+  if (warned) status += `<br>${warned} item(s) moved, but some related files stayed behind.`;
   if (aborted) status += `<br>Stopped: ${esc(aborted)} — ${ids.length - results.length} item(s) not attempted.`;
   afterMoveModalHidden(() => showResultModal({
     title: 'Move Result', good: false, status, lines: _moveResultLines(results),
@@ -335,7 +358,7 @@ function updateRenameTarget() {
 
 function renameFromDetail() {
   if (!currentDetail) return;
-  getModal('detailModal').hide();
+  leaveModalFor('detailModal', 'renameModal');
 
   const item   = currentDetail;
   const isFile = _isLooseFile(item);
@@ -373,16 +396,19 @@ async function confirmRename() {
     const payload = { item_id: itemId, new_name: newName, rename_target: renameTarget, dry_run: dryRun };
     if (renameTarget === 'both') payload.new_folder_name = newFolderName;
     const result = await api('POST', '/api/rename', payload);
-    getModal('renameModal').hide();
     if (dryRun) {
       const lines = (result.changes || []).map(c =>
         `[${c.type}]  ${c.from}\n       → ${c.to}`);
-      showDryRunModal(lines);
+      // Back reopens the Rename dialog with its inputs kept, so dry run can be turned off
+      swapModal('renameModal', () => showResultModal({
+        lines, closeText: 'Back to Rename', onClose: () => getModal('renameModal').show(),
+      }));
     } else {
+      closeModalDone('renameModal');
       showToast(`Renamed successfully`, 'success');
       triggerScan();
     }
   } catch (e) {
-    showToast('Rename failed: ' + e.message, 'danger');
+    showToast('Rename failed: ' + _apiErr(e), 'danger');
   }
 }

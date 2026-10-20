@@ -20,7 +20,7 @@ from fastapi import HTTPException
 from .fileops import _path_under_base
 from .scanner import recompute_status, refresh_transcoded
 from .settings import DEFAULT_TRANSCODE, VIDEO_EXTS, load_config, log, transcoded_root, transcoded_root_conflict
-from .state import _lock, _state, resolve_item
+from .state import _lock, _state, require_item, resolve_item
 
 ENCODER_QUALITY_ARGS = {
     "hevc_amf":   lambda qp: ["-rc", "1", "-qp_i", str(qp), "-qp_p", str(qp)],
@@ -701,10 +701,8 @@ def use_transcoded(original_id: str, transcoded_id: str, dry_run: bool) -> Dict[
     conflict = transcoded_root_conflict(config)
     if conflict:
         raise HTTPException(400, conflict)
-    original   = resolve_item(original_id)
-    transcoded = resolve_item(transcoded_id)
-    if not original or not transcoded:
-        raise HTTPException(404, "Item not found")
+    original   = require_item(original_id)
+    transcoded = require_item(transcoded_id)
     if transcoded["location"] != "transcoded" or original["location"] == "transcoded":
         raise HTTPException(400, "Pick one original and one transcoded copy")
     if original["type"] != "movie" or transcoded["type"] != "movie":

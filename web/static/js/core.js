@@ -15,6 +15,12 @@ let duplicateMap        = new Map(); // item.id → [{ id, title, location, path
 let duplicateGroups     = [];      // [{ title, items: [...] }, ...] from /api/status
 let dupGroupOf          = new Map(); // item.id → index into duplicateGroups
 
+/** False when `path` is switched off in the settings (kept in the config, ignored everywhere else). */
+function pathEnabled(path) {
+  const n = _normRoot(path);
+  return !(configCache.disabled_paths || []).some(d => _normRoot(d) === n);
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   // Run the result modal's one-time on-close callback (see showResultModal)
@@ -23,10 +29,43 @@ document.addEventListener('DOMContentLoaded', () => {
     resultModalOnClose = null;
     if (cb) cb();
   });
+
+  // A child dialog closed without running its action (Cancel, ×, Esc) reopens its parent dialog
+  document.addEventListener('hidden.bs.modal', e => {
+    const id = e.target.id;
+    if (modalSwapping.delete(id)) return;
+    const parent = modalReturnTo.get(id);
+    if (!parent) return;
+    modalReturnTo.delete(id);
+    getModal(parent).show();
+  });
 });
 
 // ── Bootstrap modal helpers ───────────────────────────────────────────────────
 const getModal = id => bootstrap.Modal.getOrCreateInstance(document.getElementById(id));
+
+const modalReturnTo = new Map();   // child dialog id → parent dialog id to reopen on cancel
+const modalSwapping = new Set();   // dialogs hidden only for a moment (e.g. to show a dry-run result)
+
+/** Leave dialog `parentId` to open dialog `childId` (caller shows it); cancelling the child returns here. */
+function leaveModalFor(parentId, childId) {
+  modalReturnTo.set(childId, parentId);
+  modalSwapping.add(parentId);
+  getModal(parentId).hide();
+}
+
+/** Hide dialog `id`, then run `next`; the dialog keeps its parent so it can be shown again (Back). */
+function swapModal(id, next) {
+  modalSwapping.add(id);
+  document.getElementById(id).addEventListener('hidden.bs.modal', next, { once: true });
+  getModal(id).hide();
+}
+
+/** Close dialog `id` after its action ran — it does not return to its parent dialog. */
+function closeModalDone(id) {
+  modalReturnTo.delete(id);
+  getModal(id).hide();
+}
 
 // ── API helper ────────────────────────────────────────────────────────────────
 async function api(method, path, body) {
@@ -70,26 +109,25 @@ function fmtSize(bytes) {
 }
 
 // ── Action result handler ─────────────────────────────────────────────────────
-function handleActionResults(results, dryRun, verb, pastVerb) {
+// `resultOpts` are passed on to showResultModal (e.g. closeText/onClose for a Back button)
+function handleActionResults(results, dryRun, verb, pastVerb, resultOpts = {}) {
   const ok   = results.filter(r => r.ok);
   const fail = results.filter(r => !r.ok);
 
   if (dryRun && ok.length) {
     const lines = ok.map(r => {
       if (r.to)   return `${r.from}\n  → ${r.to}`;
-      if (r.path) return `Would ${verb}: ${r.path}`;
+      if (r.path) return `Would ${verb}: ${r.path}` + (r.also || []).map(a => `\n  + ${a}`).join('');
       return JSON.stringify(r);
     });
-    showDryRunModal(lines);
+    showResultModal({ lines, ...resultOpts });
   } else {
     let msg = `${pastVerb}: ${ok.length} item(s)`;
     if (fail.length) msg += ` · ${fail.length} failed`;
-    showToast(msg, fail.length ? 'warning' : 'success');
+    const warnings = ok.filter(r => r.warning).map(r => r.warning);
+    if (warnings.length) msg += ' · ' + warnings.join(' · ');
+    showToast(msg, fail.length || warnings.length ? 'warning' : 'success');
   }
-}
-
-function showDryRunModal(lines) {
-  showResultModal({ lines });
 }
 
 // Called once when the result modal closes (e.g. to return to the Move dialog).

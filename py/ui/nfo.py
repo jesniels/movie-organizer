@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from .settings import log
-from .state import _lock, all_items, resolve_item
+from .state import _lock, all_items, require_item
 
 
 def parse_nfo(nfo_path: Path) -> Dict[str, Any]:
@@ -115,9 +115,7 @@ def _merge_nfo_fields(src_nfo: Path, dst_nfo: Path, fields: List[str], default_r
 
 def read_nfo(item_id: str) -> Dict[str, Any]:
     """Return the raw NFO file content for an item (pretty-printed if valid XML)."""
-    item = resolve_item(item_id)
-    if not item:
-        raise HTTPException(404, "Not found")
+    item = require_item(item_id)
     nfo_path = _find_nfo_path(item)
     if not nfo_path:
         raise HTTPException(404, "No NFO file found for this item")
@@ -137,10 +135,8 @@ def read_nfo(item_id: str) -> Dict[str, Any]:
 
 def copy_nfo(source_id: str, target_id: str, fields: Optional[List[str]]) -> Dict[str, Any]:
     """Copy a whole NFO file — or selected fields — from one item to another."""
-    src_item = resolve_item(source_id)
-    dst_item = resolve_item(target_id)
-    if not src_item or not dst_item:
-        raise HTTPException(404, "Item not found")
+    src_item = require_item(source_id)
+    dst_item = require_item(target_id)
     if src_item["type"] != dst_item["type"]:
         raise HTTPException(400, "Cannot copy NFO between a movie and a series")
     if fields:

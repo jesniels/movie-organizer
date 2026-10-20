@@ -12,9 +12,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 
-from .duplicates import _update_not_duplicates_paths
+from .duplicates import _update_not_duplicates_paths, recompute_duplicates
+from .reorganize import related_files
 from .settings import VIDEO_EXTS, load_config, map_to_local, safe_transcoded_root, valid_component
-from .state import resolve_item
+from .state import forget_items, require_item, resolve_item
 
 
 def _path_under_base(path: Path, bases: List[str]) -> bool:
@@ -31,9 +32,7 @@ def _path_under_base(path: Path, bases: List[str]) -> bool:
 
 
 def file_info(item_id: str) -> List[Dict[str, Any]]:
-    item = resolve_item(item_id)
-    if not item:
-        raise HTTPException(404, "Not found")
+    item = require_item(item_id)
     out = []
     for f in item["files"]:
         p = Path(f)
@@ -52,9 +51,7 @@ def file_info(item_id: str) -> List[Dict[str, Any]]:
 
 def play_item(item_id: str, file: Optional[str] = None) -> Dict[str, Any]:
     """Launch a video file in the OS default player."""
-    item = resolve_item(item_id)
-    if not item:
-        raise HTTPException(404, "Not found")
+    item = require_item(item_id)
     if file:
         if file not in item["files"]:
             raise HTTPException(400, "File does not belong to this item")
@@ -131,11 +128,12 @@ def _fmt_size(n: int) -> str:
 def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dict[str, Any]]:
     """Move items into ``target_base``; dry run and real run perform the same checks.
 
+    A loose file takes its own exact-stem sidecars (NFO, images, subtitles) along (R-26).
     Checks per call: destination folder exists and is writable (real write probe).
     Checks per item: source exists, its parent folder is writable (the source is
     removed after a move), destination does not exist (also not twice within this
     batch), not already in that folder, and enough free space for a cross-drive
-    move (which copies the data).
+    move (which copies the data). Sidecars get the same checks as the video.
     """
     if not target_base.strip():
         raise HTTPException(400, "target_base must not be empty")
@@ -163,15 +161,17 @@ def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dic
         if not src.exists():
             results.append({"id": item_id, "ok": False, "error": f"Source no longer exists (rescan): {src}"})
             continue
+        sidecars = _own_sidecars(src) if src.is_file() else []
         # shutil.move silently overwrites an existing file (copy fallback on Windows)
-        if dst.exists():
-            results.append({"id": item_id, "ok": False, "error": f"Destination already exists: {dst}"})
+        taken = next((p for p in [dst] + [target / s.name for s in sidecars] if p.exists()), None)
+        if taken:
+            results.append({"id": item_id, "ok": False, "error": f"Destination already exists: {taken}"})
             continue
         if _same_path(src.parent, target):
             results.append({"id": item_id, "ok": False, "error": "Item is already in that folder"})
             continue
-        dst_key = os.path.normcase(os.path.normpath(str(dst)))
-        if dst_key in planned:
+        dst_keys = [os.path.normcase(os.path.normpath(str(target / p.name))) for p in [src] + sidecars]
+        if any(k in planned for k in dst_keys):
             results.append({"id": item_id, "ok": False,
                             "error": f"Another selected item has the same name: {src.name}"})
             continue
@@ -182,28 +182,44 @@ def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dic
             results.append({"id": item_id, "ok": False,
                             "error": f"{probed[parent_key]} (needed to remove the source after moving)"})
             continue
-        if src.is_file() and not os.access(str(src), os.W_OK):
-            results.append({"id": item_id, "ok": False, "error": f"Source file is read-only: {src}"})
+        read_only = next((p for p in [src] + sidecars if p.is_file() and not os.access(str(p), os.W_OK)), None)
+        if read_only:
+            results.append({"id": item_id, "ok": False, "error": f"Source file is read-only: {read_only}"})
             continue
         cross_drive = src.stat().st_dev != target_dev
-        size = _tree_size(src) if cross_drive else 0
+        size = sum(_tree_size(p) for p in [src] + sidecars) if cross_drive else 0
         if cross_drive and needed + size > free:
             results.append({"id": item_id, "ok": False,
                             "error": f"Not enough free space on destination: needs {_fmt_size(size)}, "
                                      f"{_fmt_size(max(free - needed, 0))} left"})
             continue
         needed += size
-        planned.add(dst_key)
+        planned.update(dst_keys)
+        also = [str(s) for s in sidecars]
         if dry_run:
             results.append({"id": item_id, "ok": True,  "dry_run": True, "from": str(src), "to": str(dst),
-                            "cross_drive": cross_drive, "size": size})
-        else:
+                            "cross_drive": cross_drive, "size": size, "also": also})
+            continue
+        try:
+            shutil.move(str(src), str(dst))
+            _update_not_duplicates_paths(str(src), str(dst))
+        except Exception as exc:
+            results.append({"id": item_id, "ok": False, "error": str(exc)})
+            continue
+        # Sidecars only follow once the video itself has arrived
+        moved, errors = [], []
+        for s in sidecars:
             try:
-                shutil.move(str(src), str(dst))
-                _update_not_duplicates_paths(str(src), str(dst))
-                results.append({"id": item_id, "ok": True,  "from": str(src), "to": str(dst)})
+                if (target / s.name).exists():
+                    raise FileExistsError("destination already exists")
+                shutil.move(str(s), str(target / s.name))
+                moved.append(str(s))
             except Exception as exc:
-                results.append({"id": item_id, "ok": False, "error": str(exc)})
+                errors.append(f"{s.name}: {getattr(exc, 'strerror', None) or exc}")
+        result = {"id": item_id, "ok": True, "from": str(src), "to": str(dst), "also": moved}
+        if errors:
+            result["warning"] = "Some related files could not be moved (left in the source folder): " + "; ".join(errors)
+        results.append(result)
     return results
 
 
@@ -223,9 +239,7 @@ def rename_item(item_id: str, new_name: str, new_folder_name: Optional[str],
         raise HTTPException(400, "new_name must not be empty")
     if rename_target not in ("folder", "files", "both"):
         raise HTTPException(400, "rename_target must be folder, files, or both")
-    item = resolve_item(item_id)
-    if not item:
-        raise HTTPException(404, "Not found")
+    item = require_item(item_id)
     _check_name(new_name)
     if new_folder_name:
         _check_name(new_folder_name)
@@ -250,6 +264,11 @@ def rename_item(item_id: str, new_name: str, new_folder_name: Optional[str],
         stem = new_name if len(video_files) == 1 else f"{new_name} - Part {i}"
         file_moves.append((vf, vf.parent / (stem + vf.suffix)))
 
+    if folder_move and not folder_move[0].is_dir():
+        raise HTTPException(404, f"Folder not found on disk: {folder_move[0]} — rescan and try again")
+    for s, _ in file_moves:
+        if not s.is_file():
+            raise HTTPException(404, f"File not found on disk: {s} — rescan and try again")
     if folder_move and folder_move[1].exists() and not _same_path(*folder_move):
         raise HTTPException(400, f"Target folder already exists: {folder_move[1]}")
     sources = {os.path.normcase(str(s)) for s, _ in file_moves}
@@ -284,7 +303,21 @@ def rename_item(item_id: str, new_name: str, new_folder_name: Optional[str],
     return {"ok": True, "dry_run": False, "changes": changes}
 
 
+def _own_sidecars(video: Path) -> List[Path]:
+    """Exact-stem sidecars (NFO, images, subtitles) of a loose video that no other video in its folder shares."""
+    try:
+        siblings = [e.name for e in os.scandir(str(video.parent)) if e.is_file()]
+    except OSError:
+        return []
+    shared: set = set()
+    for other in siblings:
+        if os.path.splitext(other)[1].lower() in VIDEO_EXTS and other.lower() != video.name.lower():
+            shared.update(n.lower() for n in related_files(other, siblings))
+    return [video.parent / n for n in related_files(video.name, siblings) if n.lower() not in shared]
+
+
 def delete_items(item_ids: List[str], dry_run: bool) -> List[Dict[str, Any]]:
+    """Delete items: a folder item with all its contents, a loose file with its own sidecars (R-01, R-25)."""
     config = load_config()
     all_bases = config.get("locations", []) + config.get("downloads", []) + [safe_transcoded_root(config)]
 
@@ -313,15 +346,34 @@ def delete_items(item_ids: List[str], dry_run: bool) -> List[Dict[str, Any]]:
                                 "error": f"Folder contains {len(unknown)} video file(s) not known from the last scan "
                                          f"(e.g. {unknown[0].name}) — rescan first"})
                 continue
+        sidecars = _own_sidecars(path) if path.is_file() else []
+        also = [str(s) for s in sidecars]
         if dry_run:
-            results.append({"id": item_id, "ok": True,  "dry_run": True, "path": str(path)})
-        else:
+            results.append({"id": item_id, "ok": True,  "dry_run": True, "path": str(path), "also": also})
+            continue
+        try:
+            if path.is_dir():
+                shutil.rmtree(str(path))
+            else:
+                path.unlink()
+        except Exception as exc:
+            results.append({"id": item_id, "ok": False, "error": str(exc)})
+            continue
+        # Sidecars only go once the video itself is gone
+        removed, errors = [], []
+        for s in sidecars:
             try:
-                if path.is_dir():
-                    shutil.rmtree(str(path))
-                else:
-                    path.unlink()
-                results.append({"id": item_id, "ok": True,  "path": str(path)})
-            except Exception as exc:
-                results.append({"id": item_id, "ok": False, "error": str(exc)})
+                s.unlink()
+                removed.append(str(s))
+            except OSError as exc:
+                errors.append(f"{s.name}: {exc.strerror or exc}")
+        result = {"id": item_id, "ok": True, "path": str(path), "also": removed}
+        if errors:
+            result["warning"] = "Some related files could not be deleted: " + "; ".join(errors)
+        results.append(result)
+    deleted = [r["id"] for r in results if r["ok"] and not r.get("dry_run")]
+    if deleted:
+        # A copy left alone in its group is no longer a duplicate — no need to wait for the rescan
+        forget_items(deleted)
+        recompute_duplicates()
     return results

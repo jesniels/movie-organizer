@@ -198,5 +198,6 @@ Ideas raised during testing that were **deliberately not implemented**. Do not i
 | 31 | Potential duplicates | Rows of items in a duplicate group are marked; a panel asks after every analysis to **leave them out** of the default selection and All (default) or include them; *Select N duplicate(s)* only while left out; *Show duplicates* opens the Duplicates filter. |
 | 32 | Underscores in names | `parse_name` turns **every underscore into a space** (it usually replaced a `:`). |
 | 33 | “= folder” on conflict rows | **Off by default**, so approving `Name (1)` does not put “(1)” in the video name (to be tried by the user). |
+| 37 | Jellyfin NFO pair | **`movie.nfo` + `<video>.nfo` of equal quality is compliant** — Jellyfin's NFO saver writes both (it re-saves after a rename), so offering only *delete all* / *leave as is* was noise (2026-10-20). A different quality, or any other pair, still gets the several-NFOs choice. |
 | 34 | Live conflict check | Ticked folder **and file** names are checked against the other ticked rows **and the scanned library**; the server still decides. |
 | 35 | Toolbar button | Added in Phase 4 (needed for testing); badge and scan-disable in Phase 5. |

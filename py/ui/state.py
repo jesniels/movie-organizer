@@ -4,6 +4,8 @@ from __future__ import annotations
 import threading
 from typing import Any, Dict, List, Optional
 
+from fastapi import HTTPException
+
 _lock = threading.Lock()
 _state: Dict[str, Any] = {
     "scanning":      False,
@@ -30,3 +32,20 @@ def resolve_item(item_id: str) -> Optional[Dict[str, Any]]:
             if i["id"] == item_id:
                 return i
     return None
+
+
+def require_item(item_id: str) -> Dict[str, Any]:
+    """The item with this id, or a 404 naming the id when the current scan does not contain it."""
+    item = resolve_item(item_id)
+    if item is None:
+        raise HTTPException(404, f"Item not found in the current scan: {item_id} — it was renamed, moved "
+                                 "or deleted, or a rescan changed it. Refresh the page and try again.")
+    return item
+
+
+def forget_items(item_ids: List[str]) -> None:
+    """Drop items from the in-memory lists (e.g. after a delete) until the next scan."""
+    gone = set(item_ids)
+    with _lock:
+        for key in ("library", "downloads", "transcoded"):
+            _state[key] = [i for i in _state[key] if i["id"] not in gone]
