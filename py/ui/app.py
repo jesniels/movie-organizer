@@ -19,12 +19,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .duplicates import _load_not_duplicates, mark_not_duplicate, remove_not_duplicate_pairs
-from .fileops import delete_items, file_info, move_items, play_item, rename_item
+from .fileops import delete_items, file_info, move_groups, move_items, play_item, rename_item
 from .models import (
     ConfigBody,
     DeleteBody,
     EncoderTestBody,
     MoveBody,
+    MoveGroupsBody,
     NfoCopyBody,
     NotDuplicateBody,
     NotDupRemoveBody,
@@ -242,10 +243,15 @@ def api_play(body: PlayBody):
 
 @app.post("/api/move")
 def api_move(body: MoveBody):
-    results = move_items(body.item_ids, body.target_base, body.dry_run)
+    results = move_items(body.item_ids, body.target_base, body.dry_run, body.keep_groups)
     if not body.dry_run and any(r["ok"] for r in results):
         _remember_move_target(body.target_base)
     return results
+
+
+@app.post("/api/move/groups")
+def api_move_groups(body: MoveGroupsBody):
+    return move_groups(body.item_ids)
 
 
 def _remember_move_target(target: str) -> None:

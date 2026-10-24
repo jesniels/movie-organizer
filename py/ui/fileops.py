@@ -13,9 +13,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
 
 from .duplicates import _update_not_duplicates_paths, recompute_duplicates
-from .reorganize import related_files
+from .reorganize import _root_of, related_files
 from .settings import VIDEO_EXTS, load_config, map_to_local, safe_transcoded_root, valid_component
-from .state import forget_items, require_item, resolve_item
+from .state import _lock, all_items, forget_items, require_item, resolve_item
 
 
 def _path_under_base(path: Path, bases: List[str]) -> bool:
@@ -125,10 +125,53 @@ def _fmt_size(n: int) -> str:
     return f"{size:.1f} TB"
 
 
-def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dict[str, Any]]:
+def _move_roots(config: Dict[str, Any]) -> List[str]:
+    """Location roots for the common-folder check (transcoded items live below output\\Movies and \\Series)."""
+    t = safe_transcoded_root(config)
+    extra = [os.path.join(t, "Movies"), os.path.join(t, "Series")] if t else []
+    return [p for p in config.get("locations", []) + config.get("downloads", []) if p] + extra
+
+
+def _common_folder(item: Dict[str, Any], roots: List[str]) -> Optional[str]:
+    """The folder(s) between the item's location root and the item (e.g. 'James Bond'), or None."""
+    parent = str(_item_target(item).parent)
+    root = _root_of(parent, roots)
+    return os.path.relpath(parent, root) if root else None
+
+
+def move_groups(item_ids: List[str]) -> List[Dict[str, Any]]:
+    """The selected items that sit in a common folder below their location root, per folder.
+
+    Each entry: ``folder`` (full path), ``group`` (path below the root), ``ids`` (selected
+    items in it) and ``total`` (scanned items in it, selected or not).
+    """
+    roots = _move_roots(load_config())
+    groups: Dict[str, Dict[str, Any]] = {}
+    for item_id in item_ids:
+        item = resolve_item(item_id)
+        rel = _common_folder(item, roots) if item else None
+        if not rel:
+            continue
+        folder = str(_item_target(item).parent)
+        g = groups.setdefault(os.path.normcase(folder), {"folder": folder, "group": rel, "ids": [], "total": 0})
+        g["ids"].append(item_id)
+    with _lock:
+        items = list(all_items())
+    for item in items:
+        g = groups.get(os.path.normcase(str(_item_target(item).parent)))
+        if g:
+            g["total"] += 1
+    return sorted(groups.values(), key=lambda g: g["folder"].lower())
+
+
+def move_items(item_ids: List[str], target_base: str, dry_run: bool,
+               keep_groups: bool = False) -> List[Dict[str, Any]]:
     """Move items into ``target_base``; dry run and real run perform the same checks.
 
     A loose file takes its own exact-stem sidecars (NFO, images, subtitles) along (R-26).
+    With ``keep_groups`` an item in a common folder (``move_groups``) goes into the same
+    folder below the destination, which is created when missing; a source common folder
+    left empty is removed (R-27).
     Checks per call: destination folder exists and is writable (real write probe).
     Checks per item: source exists, its parent folder is writable (the source is
     removed after a move), destination does not exist (also not twice within this
@@ -146,6 +189,7 @@ def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dic
 
     target_dev = target.stat().st_dev
     free = shutil.disk_usage(str(target)).free
+    roots = _move_roots(load_config()) if keep_groups else []
     needed = 0                       # bytes a cross-drive move in this batch will copy
     planned: set = set()             # destinations already claimed in this batch
     probed: Dict[str, Optional[str]] = {}
@@ -157,20 +201,22 @@ def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dic
             results.append({"id": item_id, "ok": False, "error": "Not found"})
             continue
         src = _item_target(item)
-        dst = target / src.name
+        rel = _common_folder(item, roots) if keep_groups else None
+        dst_dir = target / rel if rel else target
+        dst = dst_dir / src.name
         if not src.exists():
             results.append({"id": item_id, "ok": False, "error": f"Source no longer exists (rescan): {src}"})
             continue
         sidecars = _own_sidecars(src) if src.is_file() else []
         # shutil.move silently overwrites an existing file (copy fallback on Windows)
-        taken = next((p for p in [dst] + [target / s.name for s in sidecars] if p.exists()), None)
+        taken = next((p for p in [dst] + [dst_dir / s.name for s in sidecars] if p.exists()), None)
         if taken:
             results.append({"id": item_id, "ok": False, "error": f"Destination already exists: {taken}"})
             continue
-        if _same_path(src.parent, target):
+        if _same_path(src.parent, dst_dir):
             results.append({"id": item_id, "ok": False, "error": "Item is already in that folder"})
             continue
-        dst_keys = [os.path.normcase(os.path.normpath(str(target / p.name))) for p in [src] + sidecars]
+        dst_keys = [os.path.normcase(os.path.normpath(str(dst_dir / p.name))) for p in [src] + sidecars]
         if any(k in planned for k in dst_keys):
             results.append({"id": item_id, "ok": False,
                             "error": f"Another selected item has the same name: {src.name}"})
@@ -201,6 +247,7 @@ def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dic
                             "cross_drive": cross_drive, "size": size, "also": also})
             continue
         try:
+            dst_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(src), str(dst))
             _update_not_duplicates_paths(str(src), str(dst))
         except Exception as exc:
@@ -210,15 +257,26 @@ def move_items(item_ids: List[str], target_base: str, dry_run: bool) -> List[Dic
         moved, errors = [], []
         for s in sidecars:
             try:
-                if (target / s.name).exists():
+                if (dst_dir / s.name).exists():
                     raise FileExistsError("destination already exists")
-                shutil.move(str(s), str(target / s.name))
+                shutil.move(str(s), str(dst_dir / s.name))
                 moved.append(str(s))
             except Exception as exc:
                 errors.append(f"{s.name}: {getattr(exc, 'strerror', None) or exc}")
         result = {"id": item_id, "ok": True, "from": str(src), "to": str(dst), "also": moved}
         if errors:
             result["warning"] = "Some related files could not be moved (left in the source folder): " + "; ".join(errors)
+        if rel:
+            # rmdir only removes empty folders, so nothing still in the common folder is touched
+            removed, p = [], src.parent
+            for _ in Path(rel).parts:
+                try:
+                    p.rmdir()
+                except OSError:
+                    break
+                removed.append(str(p))
+                p = p.parent
+            result["removed_folders"] = removed
         results.append(result)
     return results
 

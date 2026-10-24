@@ -38,6 +38,7 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 | R-24 | After Reorganize the library shows old paths until a rescan | Reorganize | **Open** (fails safely) |
 | R-25 | Deleting a loose file could take sidecars another video still uses | Delete | Guarded |
 | R-26 | Moving a loose file left its sidecars behind / could take or overwrite others' sidecars | Move | Guarded |
+| R-27 | Moving items out of a common folder (e.g. `James Bond\`) scattered them in the destination | Move | Guarded |
 
 ---
 
@@ -106,6 +107,11 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 - **What happened:** Move of a loose-file item moved only the video; its NFO, images and subtitles stayed in the download folder.
 - **Behaviour:** a loose file now takes its own exact-stem sidecars along (`fileops._own_sidecars`, same rule as R-25); a sidecar shared with another video in the folder stays. A folder item moves as a whole, as before.
 - **Guard:** every sidecar gets the video's checks — destination must not exist (R-03), not claimed by another item in the batch, not read-only, counted in the free-space check. Sidecars are moved only after the video arrived, each re-checked for an existing destination right before; a failed sidecar move leaves it in the source folder and is reported as a warning (the result dialog opens instead of the success toast). The dry run lists every sidecar (`also`).
+
+### R-27 — Move of items in a common folder (2026-10-20)
+- **What happened:** all movies in `Downloaded\James Bond\` were selected and moved; each landed straight in the destination and the common folder was lost.
+- **Guard:** when the Move dialog opens it asks the server (`fileops.move_groups`) which selected items sit in a folder below their location root, shows those folders ("n of m items selected") and asks **Move them together?** — *Yes* (default): the item goes into the same folder path below the destination (`keep_groups`); *No*: straight into the destination, with an offer to **Unselect** them instead. Move is disabled until the check has answered.
+- **Safety:** all R-03/R-26 checks apply to the path inside the common folder; an existing folder of that name in the destination is merged into item by item (an existing item is refused, never overwritten). After a move, the source common folder (and parents up to the root) is removed **only when empty** (`rmdir`, which cannot delete content); removed folders are listed in the result.
 
 ---
 

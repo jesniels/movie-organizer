@@ -91,16 +91,49 @@ def run(tmp: Path) -> None:
           not real[str(up)]["ok"] and {"Up.mkv", "Up.nfo"} <= set(names(dl)))
     check("folder item moved as a whole", names(lib / "Alien (1979)") == ["Alien (1979).mkv", "movie.nfo"])
 
+    # ── Common folder (R-27) ──────────────────────────────────────────────────────────
+    fileops.load_config = lambda: {"locations": [str(lib)], "downloads": [str(dl)], "transcode": {}}
+    drno = mk(dl, "James Bond/Dr. No (1962)/Dr. No (1962).mkv").parent
+    gold = mk(dl, "James Bond/Goldfinger.1964.mkv")
+    mk(dl, "James Bond/Goldfinger.1964.nfo")
+    thun = mk(dl, "James Bond/Thunderball.1965.mkv")
+    _state["downloads"] = [{"id": str(drno), "path": str(drno), "folder": drno.name,
+                            "files": [str(drno / "Dr. No (1962).mkv")], "type": "movie",
+                            "title": "Dr. No", "location": "download"},
+                           loose(gold), loose(thun), loose(up)]
+    groups = fileops.move_groups([str(drno), str(gold), str(up)])
+    check("common folder found, root-level item not grouped",
+          len(groups) == 1 and groups[0]["group"] == "James Bond"
+          and sorted(groups[0]["ids"]) == sorted([str(drno), str(gold)]) and groups[0]["total"] == 3)
+
+    bond_dl, bond_lib = dl / "James Bond", lib / "James Bond"
+    dry = fileops.move_items([str(drno), str(gold)], str(lib), True, keep_groups=True)
+    check("keep_groups dry run targets the same folder in the destination",
+          all(r["ok"] for r in dry) and all(Path(r["to"]).parent == bond_lib for r in dry)
+          and not bond_lib.exists())
+    real = fileops.move_items([str(drno), str(gold)], str(lib), False, keep_groups=True)
+    check("keep_groups moves into the folder, sidecar follows",
+          all(r["ok"] for r in real)
+          and names(bond_lib) == ["Dr. No (1962)", "Goldfinger.1964.mkv", "Goldfinger.1964.nfo"])
+    check("source common folder kept while it still holds an item",
+          names(bond_dl) == ["Thunderball.1965.mkv"] and not any(r["removed_folders"] for r in real))
+    last = fileops.move_items([str(thun)], str(lib), False, keep_groups=True)
+    check("last item: emptied source folder removed",
+          last[0]["ok"] and not bond_dl.exists() and last[0]["removed_folders"] == [str(bond_dl)]
+          and "Thunderball.1965.mkv" in names(bond_lib))
+
 
 def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="_tmp_move_", dir=Path(__file__).resolve().parent))
     saved = {k: _state.get(k) for k in ("library", "downloads", "transcoded")}
     saved_nd = duplicates.NOT_DUP_PATH
+    saved_cfg = fileops.load_config
     try:
         run(tmp)
     finally:
         _state.update(saved)
         duplicates.NOT_DUP_PATH = saved_nd
+        fileops.load_config = saved_cfg
         shutil.rmtree(tmp, ignore_errors=True)
     print(f"\n{failures} failure(s)")
     return 1 if failures else 0

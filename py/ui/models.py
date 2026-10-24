@@ -108,6 +108,11 @@ class MoveBody(BaseModel):
     item_ids:    List[str]
     target_base: str
     dry_run:     bool = True
+    keep_groups: bool = False   # items in a common folder go into the same folder below the destination
+
+
+class MoveGroupsBody(BaseModel):
+    item_ids: List[str]
 
 
 class RenameBody(BaseModel):
