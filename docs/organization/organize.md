@@ -18,7 +18,7 @@ The picker is two-level:
 Lists all `locations:` entries from `config.yaml`. Includes an "Add new library location…" option that prompts for a path, validates it, and persists it to `config.yaml` immediately.
 
 **Level 2 — Subdirectory**
-Lists existing immediate subdirectories of the chosen Library Location, plus a "Create new folder…" text field. The number of subdirectory levels shown is controlled by the `picker_depth` setting (default: 2). Users who need deeper nesting can type a full relative path in the text field. A new folder name gets the same checks as a new bundle (each path part must pass `valid_component`; only below a configured Library Location; R-28).
+The destination is the Library Location root or **one of its bundles**. The picker lists the root and the bundles directly in it, plus a "New bundle…" text field: a **single folder name** (no `\`), with the same checks as *Create bundle* (`valid_component`, created directly in the Library Location, an existing file or folder of that name refuses; R-28). Movie folders are never offered as a destination.
 
 The chosen destination is displayed once at the top of the preview dialog:
 > _Moving 5 movies to M:\Movies_

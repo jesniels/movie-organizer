@@ -25,22 +25,17 @@ A TV show with episodes organised into season folders (`S01/`, `S02/`, …) unde
 _Avoid_: TV show, show, TV series
 
 **Bundle**:
-A folder inside a Library Location (never the location root) that holds at least one movie folder — one is enough. A folder holding only video files (e.g. `CD1`/`CD2` parts) is not a Bundle. Not a Series — has no season structure or episode files. Only the folder directly above a movie's own folder counts as its Bundle. Bundles exist only in Library Locations.
+A folder inside a Library Location (never the location root) that holds at least one movie folder (one is enough) or loose files of at least two different movies (title + year). A folder holding only one movie's video files (`CD1`/`CD2` parts, multi-version files) is not a Bundle. Not a Series — has no season structure or episode files. Only the folder directly above a movie's own folder counts as its Bundle. Bundles exist only in Library Locations, directly in the location root.
 _Example_: `M:\Movies\James Bond\` containing `GoldenEye (1995)\`, `Casino Royale (2006)\`, etc.
 _Avoid_: Collection folder, franchise folder, movie group
 
-**Bundle Path**:
-The sequence of intermediate grouping folders between a Library Location root and an item's own folder. Its last element is the item's Bundle. There are no category folders today, so it normally holds just the Bundle.
-_Example_: For `M:\Movies\Action\James Bond\GoldenEye (1995)\` the Bundle Path is `Action > James Bond`; the Bundle is `James Bond`.
-_Avoid_: Parent path, relative path, breadcrumb path
-
 **Collection**:
-The TMDB collection a movie belongs to, read from its NFO (`<set><name>…</name></set>`). The strongest signal for a Bundle Proposal. Not a folder — a Collection only becomes a Bundle when the user creates one.
+The TMDB collection a movie belongs to, read from its NFO (`<set><name>…</name></set>`, with the TMDB collection ID in `<collectionnumber>`; IDs are compared when both movies have one). The strongest signal for a Bundle Proposal. Not a folder — a Collection only becomes a Bundle when the user creates one.
 _Example_: `James Bond Collection`
 _Avoid_: Set (except when naming the NFO tag)
 
 **Bundle Proposal**:
-A suggestion, computed during every Scan, that related movies belong together: either a **new bundle** (two or more different movies, none in a Bundle) or **add to bundle** (a movie outside a Bundle related to an existing one). Each proposal states its reason (same Collection, or similar titles). One movie is never a Bundle.
+A suggestion, computed during every Scan: a **new bundle** (two or more different movies, none in a Bundle), **add to bundle** (a movie outside a Bundle related to an existing one) or **merge bundles** (two Bundles with the same name in different Library Locations). Each proposal states its reason (same Collection, similar titles, same name). One movie is never a Bundle.
 _Avoid_: Bundle suggestion, smart bundle, proposed bundle finding
 
 **Not Related**:
@@ -52,7 +47,7 @@ A video file residing directly inside a location folder without its own dedicate
 _Avoid_: Unorganised file, flat file, raw file
 
 **Leftover Folder**:
-A folder inside a Library or Download Location, walked by the Scan as a grouping folder, with no video anywhere below it, holding nothing or only files from the configured `leftover:` lists (Jellyfin data such as `.nfo`/`.jpg`, system files such as `Thumbs.db`, orphaned subtitles). Never a folder inside a movie or series folder, never a configured location. Listed by every Scan; deleted only when the user selects it.
+A folder inside a Library or Download Location that produces no scanned item (a grouping folder the Scan walks through, or an emptied series shell), with no video anywhere below it, holding nothing or only files from the configured `leftover:` lists (Jellyfin data such as `.nfo`/`.jpg`, system files such as `Thumbs.db`, orphaned subtitles). Never a folder inside a movie or series folder (a folder that produced a scanned item — checked on disk before deleting), never a configured location or a folder containing one, never a system folder (`$RECYCLE.BIN`, …). NAS thumbnail folders (`@eaDir`) inside it are deleted with it. Listed by every Scan; deleted only when the user selects it.
 _Avoid_: Empty folder (it usually is not empty), orphan folder
 
 **NFO Quality**:

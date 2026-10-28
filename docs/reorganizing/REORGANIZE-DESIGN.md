@@ -223,7 +223,7 @@ Backend module: `py/ui/reorganize.py` (analysis + execution), thin routes in `ap
 - Moving items between locations (that is Organize).
 - Fixing NFO contents (title/year) — Blocked items point the user at the NFO tools instead.
 - Resolving duplicate/redundant NFOs automatically.
-- Bundles: a Bundle Path is preserved as-is; only the item's own folder is renamed.
+- Bundles: the bundle folder is kept as-is; only the item's own folder is renamed.
 
 ## Decisions (2026-09-28)
 

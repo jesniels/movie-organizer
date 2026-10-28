@@ -17,6 +17,8 @@ The core workflow is: content lands in a Download Location → user selects item
 |---|---|
 | [organize.md](./organize.md) | Organize action — move items to library with subfolder creation and image management (NFOs keep their name) |
 | [bundles.md](./bundles.md) | Bundles — proposals computed during every scan (NFO collection, similar titles), "not related" marks, moving movies into a new or existing bundle |
+| [BUNDLES-PLAN.md](./BUNDLES-PLAN.md) | Implementation plan for Bundles (incl. the R-30 trickplay fix), in five phases |
+| [LEFTOVERS-PLAN.md](./LEFTOVERS-PLAN.md) | Implementation plan for Leftover Folders, in five phases |
 
 ## Other Actions
 
@@ -45,8 +47,10 @@ Folders left behind after movies were moved or deleted — often not literally e
 **What counts as a leftover folder** — a folder inside an (enabled) Library or Download Location that has **no video anywhere below it** and holds only files from the configured lists (below). It is never:
 
 - the location itself, nor a folder that **is or contains another configured folder** (library, download or transcode output, enabled or not — the same list the scan uses to skip nested locations);
-- a folder **inside a scanned movie or series folder** — `Heat (1995)\Subs\`, `Heat (1995)\extrafanart\`, `Heat (1995)\Heat.trickplay\` or an empty `Season 00\` belong to a working item. Only folders the scan walks through as grouping folders can be leftovers;
-- a folder named in `ignored_folders` (NAS system folders such as Synology `@eaDir`, QNAP `.@__thumb`): never listed and never entered. A leftover folder that contains one is listed, but the ignored folder is left in place, so the parent stays too (reported, not an error).
+- a folder **inside a movie or series folder** — `Heat (1995)\Subs\`, `Heat (1995)\extrafanart\`, `Heat (1995)\Heat.trickplay\` or an empty `Season 00\` belong to a working item. "Movie or series folder" means a folder that **produces a scanned item** (it holds a video, or is a series with episodes) — not merely a folder the scanner would treat as a leaf. So an emptied series shell (`Show\S01\` with only `tvshow.nfo` and images left) *is* a leftover: its season folders no longer make it an item;
+- a folder named in `system_folders` (`$RECYCLE.BIN`, `System Volume Information`, `#recycle`): never listed, never entered, never deleted. They normally sit at a drive or share root, which is a location root and never a leftover anyway; a leftover folder that does contain one is not listed.
+
+**NAS thumbnail folders** (`thumbnail_folders`: Synology `@eaDir`, QNAP `.@__thumb`) are caches the NAS rebuilds; Synology puts `@eaDir` in nearly every indexed folder. They never make a folder "not a leftover": inside a leftover folder they are part of it (shown as *NAS thumbnails*) and deleted with it — **any file except a video** is allowed inside them (their files, `SYNOPHOTO_THUMB_*.jpg` or `SYNOINDEX_MEDIA_INFO`, are on no list). They are never listed on their own, e.g. an `@eaDir` inside a working movie folder stays untouched. (Decided 2026-10-28 — keeping them would leave most leftovers on a Synology share in place and listed again after every scan.)
 
 | Content | Shown as |
 | :--- | :--- |
@@ -55,6 +59,7 @@ Folders left behind after movies were moved or deleted — often not literally e
 | `ignored_files` (default `Thumbs.db`, `desktop.ini`, `.DS_Store`) | not shown, deleted with the folder |
 | `subtitle_files` (default `.srt`, `.sub`, `.idx`, `.ass`, `.ssa`, `.vtt`, `.sup`) | *subtitle, no video* |
 | sub-folders that are leftover folders themselves; those named in `jellyfin_folders` (default `extrafanart`, `extrathumbs`, `*.trickplay`) are labelled *Jellyfin data* | part of the parent |
+| `thumbnail_folders` (default `@eaDir`, `.@__thumb`) with any non-video files | *NAS thumbnails*, part of the parent |
 
 Any other file (`.txt`, `.exe`, …) means the folder is **not** listed — it may hold something the user wants. A video is any file with a video extension (`VIDEO_EXTS`), not configurable. Transcode output is not included: it is temporary until the user moves the files into the library.
 
@@ -66,7 +71,8 @@ leftover:
   subtitle_files:   [.srt, .sub, .idx, .ass, .ssa, .vtt, .sup]
   ignored_files:    [Thumbs.db, desktop.ini, .DS_Store]
   jellyfin_folders: [extrafanart, extrathumbs, "*.trickplay"]
-  ignored_folders:  ["@eaDir", ".@__thumb", "#recycle", "$RECYCLE.BIN", "System Volume Information"]
+  thumbnail_folders: ["@eaDir", ".@__thumb"]
+  system_folders:   ["$RECYCLE.BIN", "System Volume Information", "#recycle"]
 ```
 
 - File entries match case-insensitively on the whole file name (`Thumbs.db`, `.DS_Store`) or, when they start with a dot, on the extension (`.jpg`). Folder entries match the folder name; `*` is a wildcard.
@@ -76,7 +82,7 @@ leftover:
 - Changes apply at the next scan; the re-check before deleting always uses the current settings.
 
 **Detection**
-- **During every scan:** the scan already walks every grouping folder, so collecting them costs nothing extra. Only the topmost leftover folder of a tree is listed (with its sub-folders inside it). The list is saved in the per-location cache, so it is there at startup without a rescan.
+- **During every scan:** the scan already walks every grouping folder, so collecting them costs nothing extra. A folder the scanner treats as a series but that yields no item (no episodes left) is checked too — it is the one case where the scan does not descend. Only the topmost leftover folder of a tree is listed (with its sub-folders inside it). The list is saved in the per-location cache, so it is there at startup without a rescan: a `leftovers` list next to the items, each entry `{path, files}` with `path` relative to the location root and `files` relative to that folder (the cache's usual relative-path convention); it is converted to absolute paths when loaded, like items.
 - **After an action** (Move, Delete, bundle move, Reorganize, Use transcoded video): the server checks the source parent folders of the changed items on disk, up to the location root, and adds the leftovers it finds to the in-memory list — a few folders, no full scan. That gives the “N leftover folders — Review…” count right away.
 
 **Out of scope (deliberate):** leftover *files* — orphaned sidecars in a folder that still holds videos (e.g. `Heat (1995).nfo` at a download root) — are not listed.
@@ -98,7 +104,7 @@ Leftover folders
 
 - Each row shows its content and expands to the full file list. **Nothing is ticked by default.**
 - Dry run by default; a real run asks for confirmation inside the dialog.
-- **Server re-check per folder before deleting:** still inside a configured location, not the location itself, not (containing) another configured folder, not inside a scanned movie or series folder, still no video below it, only files on the configured lists, and still exactly the files the user saw. Then the listed files are deleted one by one and the folders removed with `rmdir`, deepest first — never a recursive delete, so anything that appeared in the meantime makes that folder fail safely. Risk register: R-29.
+- **Server re-check per folder before deleting**, on disk — not against the cached item list, which may be older than the last action: still inside a configured location, not the location itself, not (containing) another configured folder, no folder between the location root and it produces an item (holds a video, or is a series with episodes), no `system_folders` inside it, still no video below it, only files on the configured lists (any non-video file inside a `thumbnail_folders` folder), and still exactly the files the user saw. Then the listed files are deleted one by one and the folders removed with `rmdir`, deepest first — never a recursive delete, so anything that appeared in the meantime makes that folder fail safely. Risk register: R-29.
 
 The CLI `delete-empty-folders.py` keeps its own, stricter rules (empty, or a single `.nfo`).
 
@@ -111,7 +117,7 @@ GoldenEye (1995)
 James Bond
 ```
 
-This is derived from the **Bundle Path** tracked by the scanner (its last element is the Bundle). See [bundles.md](./bundles.md).
+This is the item's `bundle` field (the bundle folder's full path; the list shows its name), set by the scanner. See [bundles.md](./bundles.md).
 
 ## New `config.yaml` Settings
 
@@ -120,7 +126,6 @@ settings:
   organize:
     delete_images_default: true   # Default for "Delete images" checkbox in Organize dialog
     warn_mixed_types: true        # Warn when organizing movies and series to the same destination
-    picker_depth: 2               # Subdirectory levels shown in the destination picker
 ```
 
-All three settings are editable in the Settings modal in the UI. (There is no NFO-rename setting: NFOs keep their name — `movie.nfo` or `<video>.nfo` — decided 2026-10-01.)
+Both settings are editable in the Settings modal in the UI. (There is no NFO-rename setting: NFOs keep their name — `movie.nfo` or `<video>.nfo` — decided 2026-10-01.)
