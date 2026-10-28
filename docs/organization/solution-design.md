@@ -1,7 +1,7 @@
 # Solution Design: Movie Library Organisation
 
 **Phase:** Organisation features (movie library and download folder management)
-**Status:** Approved for implementation
+**Status:** Approved for implementation (Smart Scan replaced by bundle detection during every scan, 2026-10-28 — see [bundles.md](bundles.md))
 
 ---
 
@@ -21,7 +21,7 @@ Extend the web UI with two major capabilities:
 
 1. **Organize action** — a bulk operation that moves selected movies or series from any configured location into a chosen Library Location, creating per-movie subfolders for Loose Files, handling image deletion (NFO files keep their name), showing a full per-item preview with conflict detection, and executing with a visible progress modal that can be cancelled safely.
 
-2. **Smart Scan** — a separate, deeper analysis pass that runs alongside (but independently of) the Basic Scan. It surfaces proposed Bundles, duplicate movies, and NFO gaps. Results are persisted across restarts and displayed in a dedicated sidebar section with actionable dialogs for each finding type.
+2. **Bundles** — every scan proposes movies that belong together (same NFO collection, or similar titles), as a new bundle or as an addition to an existing one. The user moves them into a bundle folder with dry run and confirmation, or marks them *not related*; those choices are remembered and editable in Settings. Duplicates and incomplete NFOs are already shown as special filters, so there is no separate Smart Scan.
 
 Supporting these, the scanner is extended to track Bundle Paths, the destination picker supports multi-level subdirectory navigation, and the settings system gains new user-configurable defaults.
 
@@ -59,40 +59,40 @@ Supporting these, the scanner is extended to track Bundle Paths, the destination
 26. As a user, I want any partially-copied destination file to be deleted on cancel, so that I do not end up with corrupt half-written files in my library.
 27. As a user, I want a post-operation prompt telling me how many items were moved, so that I can confirm the outcome.
 28. As a user, I want a "Rescan now" option in the post-operation prompt, so that the library list reflects the new state immediately.
-29. As a user, I want a "Clean up empty folders" option in the post-operation prompt, so that I can remove leftover empty source folders in one step.
-30. As a user, I want the empty folder cleanup option to list the folders that will be deleted, so that I know exactly what will be removed.
-31. As a user, I want the empty folder cleanup option to only appear when empty folders actually exist, so that the prompt is not cluttered when there is nothing to clean.
-32. As a user, I want a warning in the post-operation prompt if a Smart Scan is running and blocking the rescan, so that I understand why the Rescan button is unavailable.
-33. As a user, I want a "Stop Smart Scan" button inline in that warning, so that I can unblock the rescan without navigating away.
+29. As a user, I want a "Review leftover folders" link in the post-operation prompt when the operation left folders behind, so that I can clean them up in one step. (Changed 2026-10-28 — one Leftover Folders dialog for all actions.)
+30. As a user, I want the leftover folders dialog to list each folder with its content, so that I know exactly what will be removed.
+31. As a user, I want the link to appear only when leftover folders exist, so that the prompt is not cluttered when there is nothing to clean.
+32. _(Removed 2026-10-28 — there is no Smart Scan that could block the rescan.)_
+33. _(Removed 2026-10-28 — see 32.)_
 
 ### Bundle Display
 
 34. As a user, I want movies that live inside a Bundle folder to show a subtle breadcrumb below their title in the library list, so that I can see at a glance which bundle they belong to.
-35. As a user, I want the breadcrumb to show all intermediate grouping folders between the Library Location root and the item, so that deeply nested items are fully identified.
+35. As a user, I want the breadcrumb to show the bundle the movie is in (the folder directly above its own folder), so that I can see where it belongs. (Changed 2026-10-28 — there are no category folders.)
 
 ### Move Action (Enhancement)
 
 36. As a user, I want the Move action's destination picker to list all configured paths — both Library Locations and Download Locations — so that I can move an item back to downloads or to a staging folder for transcoding.
 
-### Smart Scan
+### Bundles (replaces Smart Scan, 2026-10-28)
 
-37. As a user, I want a Smart Scan button in the navbar, so that I can trigger a deeper library analysis at any time.
-38. As a user, I want a separate Smart Scan progress indicator in the navbar, so that I can distinguish it from the Basic Scan indicator.
-39. As a user, I want to be able to cancel a Smart Scan in progress, so that I can stop it if it is causing excessive disk or network IO.
-40. As a user, I want the Rescan button to be disabled while Smart Scan is running, so that I am not running competing disk operations.
-41. As a user, I want Smart Scan results shown in a dedicated sidebar section, so that findings are always visible without navigating away from the library list.
-42. As a user, I want the sidebar section to show finding counts per type (Proposed Bundles, Duplicates, NFO Gaps), so that I can see the size of each problem at a glance.
-43. As a user, I want to click a finding type in the sidebar to open its action dialog, so that I can act on findings without hunting through the library list.
-44. As a user, I want Smart Scan results to be saved to disk and reloaded on application startup, so that I do not lose findings between sessions.
-45. As a user, I want a Clear button in the Smart Scan sidebar section, so that I can discard results when I am done acting on them.
-46. As a user, I want a staleness warning when the library has been rescanned since the last Smart Scan, so that I know the findings might not reflect the current state.
-47. As a user, I want Proposed Bundle findings to list the member movies and suggest a bundle name, so that I can review the proposal before creating the bundle.
-48. As a user, I want to edit the proposed bundle name before accepting it, so that the bundle folder name matches my convention.
-49. As a user, I want accepting a bundle proposal to trigger the Organize action for those movies, so that the bundle is created using the same flow I already understand.
-50. As a user, I want Duplicate findings to show the location and path of each copy, so that I can decide which copy to keep.
-51. As a user, I want to select which duplicate copies to delete from the Duplicates dialog, so that I can resolve duplicates without leaving the Smart Scan workflow.
-52. As a user, I want the Duplicates dialog to prevent me from deleting all copies of a movie, so that I cannot accidentally remove the only copy.
-53. As a user, I want NFO Gap findings to list items with missing or partial NFO data and describe what is missing, so that I know which items need attention.
+37. As a user, I want bundle proposals computed as part of every scan, so that I do not have to start a separate analysis or watch a second indicator.
+38. As a user, I want movies with the same collection in their NFO grouped together, so that franchises without a shared title (e.g. James Bond) are found.
+39. As a user, I want movies with similar titles grouped when their NFOs give no collection, so that movies without good NFOs are found too.
+40. As a user, I want each proposal to say why it was made (same collection or similar titles), so that I know how much to trust it.
+41. As a user, I want a single movie never proposed as a bundle, and copies of one movie counted once, so that proposals are real groups.
+42. As a user, I want movies from different collections never grouped by title, so that unrelated movies with similar names stay apart.
+43. As a user, I want a movie outside a bundle suggested for an existing related bundle, with the bundle's current movies shown, so that new arrivals join their bundle.
+44. As a user, I want a "Possible bundles" special filter with a count, so that I see the proposals next to Duplicates and Incomplete NFO.
+45. As a user, I want to edit the proposed bundle name and choose the Library Location, so that the folder matches my convention.
+46. As a user, I want to create a bundle from a proposal, moving the movies into a new folder with a dry run first, so that I can check before anything moves.
+47. As a user, I want to add a movie to an existing bundle from a proposal, so that the bundle stays complete.
+48. As a user, I want a loose file moved into a bundle to get its own `Title (Year)` folder, so that the bundle keeps the Jellyfin structure.
+49. As a user, I want to mark a whole proposal as not related, so that unrelated movies are not proposed again.
+50. As a user, I want to mark one movie of a proposal as outside the bundle, so that the rest can still be bundled.
+51. As a user, I want to mark a movie suggested for an existing bundle as not related, so that it is not suggested again.
+52. As a user, I want these choices remembered and listed in Settings where I can remove them, so that I can change my mind.
+53. As a user, I want to move selected movies into an existing or new bundle by hand, so that I can group movies the detection did not find.
 
 ### Settings
 
@@ -100,6 +100,12 @@ Supporting these, the scanner is extended to track Bundle Paths, the destination
 55. As a user, I want to configure the default value of the "Delete images" checkbox in Settings, so that it is already set correctly when I open the Organize dialog.
 56. _(Removed 2026-10-01 — there is no NFO-rename option, so no default to configure.)_
 57. As a user, I want to configure whether the mixed-types warning is shown in Settings, so that power users who intentionally mix movies and series can suppress it.
+
+### Bundles — additions (2026-10-28 review)
+
+58. As a user, I want a Bundles overview listing every bundle with its movie count, where I can show a bundle's movies and rename the bundle folder, so that I can manage bundles in one place.
+59. As a user, I want to move selected movies out of their bundle to the root of its Library Location, so that I can undo a bundling.
+60. As a user, I want to be warned that moving a movie may reset its Jellyfin played status, so that I am not surprised.
 
 ---
 
@@ -125,9 +131,9 @@ The scanner (`_process_leaf`, `_scan_recursive`) is modified to accept and propa
 
 Examples:
 - `M:\Movies\GoldenEye (1995)\` → `bundle_path: []`
-- `M:\Movies\Action\James Bond\GoldenEye (1995)\` → `bundle_path: ["Action", "James Bond"]`
+- `M:\Movies\James Bond\GoldenEye (1995)\` → `bundle_path: ["James Bond"]`
 
-Items with an empty `bundle_path` show no breadcrumb. Items with a non-empty `bundle_path` show it in the library list as a secondary line.
+Items with an empty `bundle_path` show no breadcrumb. Items with a non-empty `bundle_path` show their bundle (the last element) in the library list as a secondary line.
 
 ### Organize Engine (new deep module)
 
@@ -159,39 +165,23 @@ The plan endpoint is called when the user opens the preview dialog. The execute 
 | `GET` | `/api/locations/subdirs?path=…&depth=…` | Returns the subdirectory tree of a configured path up to the given depth. Only returns directories, not files. Only paths that are under a configured location are accepted. |
 | `POST` | `/api/config/locations` | Adds a new Library Location path to `config.yaml`. Validates that the path exists. |
 
-### Smart Scan Engine (new deep module)
+### Bundle Detection and Bundle Moves (replaces the Smart Scan engine, 2026-10-28)
 
-A self-contained smart scan module with three independent analysers that can each be tested in isolation:
+Full design: [bundles.md](bundles.md). In short:
 
-**Bundle Proposer** — takes a list of items, normalises titles (strips quality tags, year, sequel markers, colon subtitles), groups items by normalised base title, and returns proposed bundle groups with at least two members. Pure function, no I/O.
+- **Detection** — new module `py/ui/bundles.py` with a pure `find_bundle_proposals(items, not_related)`: groups movies by NFO collection (`<set>`, newly parsed in `nfo.py`), then by normalised title (NFO title, else the parsed name); never groups different collections; needs two different movies (a duplicate group counts once). Runs at the end of every scan and wherever duplicates are recomputed; results live in `_state` only (recomputed from the cache at startup, nothing persisted).
+- **Not related** — records *movie → bundle key* in `web/not-related.json`, following path changes like `not-duplicates.json`; a Settings tab lists and removes them.
+- **Moving into a bundle** — an extension of Move: may create one new bundle folder directly in a Library Location, and a loose file's own `Title (Year)` folder inside the bundle. All Move guards apply (APPLICATION-RISKS R-03, R-26, R-27; new R-28).
 
-**Duplicate Finder** — takes a list of items, groups by normalised title, returns groups with more than one member across any location. The existing `_find_duplicates` function is a starting point but will be extended to normalise more aggressively. Pure function, no I/O.
-
-**NFO Gap Detector** — takes a list of items, filters to those with `nfo_quality` of `none` or `partial`, and annotates each with which fields are missing (`year`, `uniqueids`). Pure function, no I/O.
-
-The Smart Scan runner executes the three analysers sequentially, reporting progress. It is run as a cancellable background thread, separate from the Basic Scan thread.
-
-### Smart Scan State and Persistence
-
-Smart Scan state is held in a separate state dictionary from the library state, under the same `_lock`. It includes: `running`, `cancelled`, `last_scan_time`, `results` (findings per type), `error`.
-
-Results are persisted to `web/cache/smart-scan.json` on completion, with the same write-to-temp-then-replace pattern used by the library cache. They are loaded at startup alongside the library cache.
-
-Staleness is determined by comparing `_state["last_scan"]` (Basic Scan timestamp) against the Smart Scan `last_scan_time`. If `last_scan > last_smart_scan`, the staleness flag is set in the status response.
-
-### Smart Scan API Endpoints
+### Bundle API Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/smart-scan/start` | Starts a Smart Scan. Returns 409 if Basic Scan is running. |
-| `GET` | `/api/smart-scan/status` | Returns running flag, progress, last run timestamp, staleness flag. |
-| `POST` | `/api/smart-scan/cancel` | Signals the running Smart Scan to stop. |
-| `GET` | `/api/smart-scan/results` | Returns persisted findings. |
-| `DELETE` | `/api/smart-scan/results` | Clears persisted findings and the cache file. |
-
-### Basic Scan / Smart Scan Mutual Exclusion
-
-The two background operations use separate named flags (`_state["scanning"]` for Basic Scan, `_smart_state["running"]` for Smart Scan). The Smart Scan start endpoint checks `_state["scanning"]` and returns 409 if a Basic Scan is in progress. The Rescan endpoint (`POST /api/scan`) checks `_smart_state["running"]` and returns 409 if Smart Scan is in progress. The frontend reflects these states by disabling the respective buttons.
+| `GET` | `/api/bundles` | Current proposals and the existing bundles (for the Bundle… picker). |
+| `POST` | `/api/bundles/move` | Moves movies into an existing bundle or a new one (`location` + `name`); dry run by default. |
+| `GET` | `/api/bundles/not-related` | Lists the not-related records. |
+| `POST` | `/api/bundles/not-related` | Adds records (whole proposal, one movie, or a candidate for an existing bundle). |
+| `POST` | `/api/bundles/not-related/remove` | Removes the selected records. |
 
 ### Frontend Modules
 
@@ -199,11 +189,9 @@ Front-end code goes in the feature's script in `web/static/js/`. Shared helpers 
 
 **Organize dialog** — opens from the selection action bar. Steps: destination picker (location + subdirectory) → preview table (per-row checkboxes, conflict highlighting, option checkboxes) → confirmation. Calls plan endpoint when destination is chosen; calls execute endpoint on "Do it".
 
-**Progress modal** — shared component used by Organize execution. Polls `/api/organize/status` every 500 ms. Shows item count progress and current file name. Exposes a cancel callback. Used only for Organize in this phase; Smart Scan progress uses the navbar badge.
+**Progress modal** — shared component used by Organize execution. Polls `/api/organize/status` every 500 ms. Shows item count progress and current file name. Exposes a cancel callback. Used only for Organize in this phase.
 
-**Smart Scan sidebar section** — rendered in the existing left sidebar alongside the library status panel. Polls `/api/smart-scan/status` when a scan is running. Renders finding counts and a Clear button. Each finding row is clickable.
-
-**Smart Scan action dialogs** — separate modal for each finding type (Bundles, Duplicates, NFO Gaps). Bundles dialog calls the Organize flow for accepted proposals.
+**Bundles** (`web/static/js/bundles.js`) — the "Possible bundles" special filter, the Bundle dialog (new bundle / add to bundle, Outside / Not related buttons, dry run), the **Bundle…** selection-bar action (incl. *Out of bundle*), the Bundles overview (show movies, rename), and the Settings "Not related" tab.
 
 **Destination picker component** — reusable two-level picker (location dropdown + subdirectory list/input). Calls `/api/locations/subdirs` when a location is selected. Supports "Add new location" and "Create new subfolder" inline.
 
@@ -219,17 +207,15 @@ A good test verifies the external behaviour of a module given a specific input, 
 
 **Bundle path extractor** — pure function. Test cases: item directly under library root → empty bundle path; item one level deep → single-element bundle path; item two levels deep → two-element bundle path; path not under library root → error or empty.
 
-**Bundle proposer** — pure function. Test cases: two movies with sequel indicators stripped to same base → proposed group; single movie → not proposed; movies from different locations → still grouped; title with colon subtitle → base extracted correctly; Roman numeral suffix → base extracted correctly.
+**Bundle proposer** — pure function. Test cases: two movies with the same NFO collection but unrelated titles → one proposal named after the collection without " Collection"; two movies with sequel indicators stripped to the same base → proposal only when one of them is the original (title = base, e.g. *Rocky* + *Rocky II*); *Toy Story 2* + *Toy Story 3* alone or *Apollo 13* + *Apollo 18* → nothing; `1917` → never stripped to an empty base; single movie (also a single-movie collection) → nothing; two copies of one movie → nothing; different collections with similar titles → not grouped; movies from different locations → still grouped; colon subtitle and Roman numeral suffix → base extracted; movie related to an existing bundle → add-to-bundle proposal; movie already in a bundle → not proposed elsewhere; not-related records → respected (proposal dropped below two unmarked movies).
 
-**Duplicate finder** — pure function. Test cases: same title in library and download → duplicate group; same title in two Library Locations → duplicate group; unique title → not in results; title normalisation handles year and quality-tag differences.
-
-**NFO gap detector** — pure function. Test cases: item with `nfo_quality: none` → included with missing fields noted; item with `nfo_quality: partial` (has year, no uniqueids) → included with `uniqueids` flagged as missing; item with `nfo_quality: full` → not included.
+**Bundle move** — real files in `py/test/_tmp*`: new bundle folder created only in a Library Location; invalid or existing name refused; movie folder moved as a whole; loose file foldered with its exact-stem sidecars (`Alien` / `Aliens` kept apart); existing destination refused; emptied source bundle removed only when empty; dry run touches nothing and lists what the real run does.
 
 **Config loader with new settings section** — test that a config without `settings:` merges defaults correctly; test that a config with partial `settings.organize` fills in missing keys.
 
 ### Prior art in the codebase
 
-The existing codebase has no test files for the web backend. The closest prior art is `test_filename_parsing.py` and `test_normalize.py` at the repo root, which test pure string-manipulation functions directly. The new deep modules (plan generator, bundle proposer, duplicate finder, etc.) follow the same pattern: import the function, call with a constructed input, assert on the output.
+The existing codebase has no test files for the web backend. The closest prior art is `test_filename_parsing.py` and `test_normalize.py` at the repo root, which test pure string-manipulation functions directly. The new deep modules (plan generator, bundle proposer, etc.) follow the same pattern: import the function, call with a constructed input, assert on the output.
 
 ---
 
@@ -238,7 +224,7 @@ The existing codebase has no test files for the web backend. The closest prior a
 - **Series organize** — series are moved as a whole folder unit in this phase; detailed season/episode reorganisation (e.g. renaming individual episode files, restructuring season folders) is a separate future feature.
 - **ffprobe / ffmpeg integration** — codec inspection and transcoding are acknowledged future features but are not part of this design.
 - **Jellyfin API integration** — triggering Jellyfin library refreshes via API after organizing is a future enhancement; for now, the user manually triggers a Jellyfin scan.
-- **NFO creation / editing** — the NFO Gaps finding surfaces items that need attention, but in-app NFO editing is out of scope. Only the detection and display are implemented.
+- **NFO creation / editing** — the Incomplete NFO special filter surfaces items that need attention, but in-app NFO editing is out of scope.
 - **Undo / rollback** — by ADR 0003, cancelled Organize operations do not roll back completed moves.
 - **Concurrent organize operations** — only one Organize execution runs at a time.
 - **`fix-renamed-movies.py` integration** — the iTunes m4v/mp4 matching workflow is not integrated into the web UI in this phase.
@@ -248,9 +234,7 @@ The existing codebase has no test files for the web backend. The closest prior a
 
 ## Further Notes
 
-- The existing `_find_duplicates` function already exists in the backend and produces duplicate groups. The Smart Scan duplicate finder should reuse this logic, but run it against the full merged library (library + downloads) with more aggressive normalisation, rather than inline during the Basic Scan.
 - The `_clean_title` function and `QUALITY_STRIP` regex are directly reusable by the bundle proposer for title normalisation.
-- The existing scan badge polling pattern (`/api/scan/status` polled every 500 ms) should be replicated for Smart Scan status polling rather than introducing a WebSocket or SSE mechanism in this phase.
 - The `picker_depth` setting controls UI rendering only; the `/api/locations/subdirs` endpoint always returns one level at a time regardless of depth, and the frontend makes multiple calls as the user navigates deeper.
 - When a "Add new library location" path is added via the Organize picker, it must be validated on the backend (path must exist as a directory) before being written to `config.yaml`.
-- The post-Organize empty folder cleanup deletes only folders that are completely empty after the move. It does not recurse into partially-emptied folder trees.
+- Leftover folders (no video below, only files from the configurable `leftover:` lists — Jellyfin data, system files, orphaned subtitles) are collected by every scan and deleted only from the Leftover Folders dialog — see the organization [README](README.md#leftover-folders-designed-2026-10-28-not-built-yet).

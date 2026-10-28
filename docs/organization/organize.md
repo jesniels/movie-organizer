@@ -18,7 +18,7 @@ The picker is two-level:
 Lists all `locations:` entries from `config.yaml`. Includes an "Add new library location…" option that prompts for a path, validates it, and persists it to `config.yaml` immediately.
 
 **Level 2 — Subdirectory**
-Lists existing immediate subdirectories of the chosen Library Location, plus a "Create new folder…" text field. The number of subdirectory levels shown is controlled by the `picker_depth` setting (default: 2). Users who need deeper nesting can type a full relative path in the text field.
+Lists existing immediate subdirectories of the chosen Library Location, plus a "Create new folder…" text field. The number of subdirectory levels shown is controlled by the `picker_depth` setting (default: 2). Users who need deeper nesting can type a full relative path in the text field. A new folder name gets the same checks as a new bundle (each path part must pass `valid_component`; only below a configured Library Location; R-28).
 
 The chosen destination is displayed once at the top of the preview dialog:
 > _Moving 5 movies to M:\Movies_
@@ -105,29 +105,18 @@ On completion or cancellation:
 ```
 ✓ 3 of 5 items moved.
 
-☑ Clean up 2 empty source folders:          ← shown only when empty folders exist
-   • D:\Downloaded\Netflix\OldFolder1\
-   • D:\Downloaded\Netflix\OldFolder2\
+2 leftover folders — Review…                 ← shown only when the operation left some behind
 
 [Rescan now]    [Done]
 ```
 
-- **Clean up empty folders** — only shown when empty folders are detected in the source location after the operation. Lists each folder so the user knows what will be deleted.
-- **Rescan now** — triggers a Basic Scan immediately.
-- If a Smart Scan is currently running, the Rescan button is replaced with:
-  > ⚠ A rescan is needed but Smart Scan is running.  [Stop Smart Scan]
-
-  Clicking "Stop Smart Scan" cancels it and re-enables the Rescan button.
+- **Review…** — opens the Leftover folders dialog ([README](./README.md#leftover-folders-designed-2026-10-28-not-built-yet)), where the user picks which folders to delete. (Changed 2026-10-28 — one cleanup mechanism for all actions instead of an Organize-only option.)
+- **Rescan now** — triggers a scan immediately.
 
 ---
 
-## Creating a Bundle via Organize
+## Organize into a Bundle
 
-Bundles are created naturally through the Organize action. To group three Bond films into a bundle:
+The destination picker can navigate into an existing Bundle folder (e.g. `M:\Movies\James Bond\`) or create one as a new subfolder; each film gets its own subfolder inside it.
 
-1. Select the Bond movies in the library list.
-2. Click Organize.
-3. In the destination picker, choose `M:\Movies\Action` then type `James Bond` as a new subfolder — or navigate into an existing `James Bond\` folder.
-4. Execute. Each film gets its own subfolder inside `M:\Movies\Action\James Bond\`.
-
-No dedicated "Create Bundle" action is needed.
+Creating bundles and adding movies to them is primarily done with the Bundle dialog and the **Bundle…** action — see [bundles.md](./bundles.md) (changed 2026-10-28; no longer depends on Organize). Both share the loose-file foldering logic.

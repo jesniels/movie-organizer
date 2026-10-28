@@ -1,5 +1,7 @@
 # Smart Scan blocks basic Rescan
 
+> **Status: Superseded (2026-10-28).** Smart Scan was dropped before it was built. Its findings need no separate pass: Duplicates and Incomplete NFO already exist as special filters, and bundle proposals are computed at the end of every scan from the data already in memory, with no disk access (see [bundles.md](../organization/bundles.md)). With only one scan there is nothing to block and only one navbar indicator. Should a heavy analysis (e.g. ffprobe on every file) ever be designed, it needs its own decision.
+
 While Smart Scan is running, the Rescan button is disabled. The user must cancel Smart Scan before triggering a Basic Scan.
 
 Smart Scan performs extensive sequential disk and network I/O across all configured locations. Running a parallel Basic Scan against the same paths risks IO contention on network shares, makes progress reporting ambiguous, and could invalidate Smart Scan findings mid-flight (e.g. items disappear because the cache is cleared and rewritten). The alternative — allowing both to run concurrently with separate, independently-managed caches — was rejected because the increased implementation complexity was not justified given that Smart Scan already surfaces everything a Basic Scan does, and more.

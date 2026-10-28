@@ -57,7 +57,7 @@ Every switch only controls whether something is **suggested** — never whether 
 
 ## Analysis — finding candidates
 
-Runs **when the Reorganize Dialog is opened** (right away) or its Refresh button is clicked, and **only on the items currently shown by the left-bar filters** (location, movies/series, search text, special filter) — the dialog sends their ids. It is **never triggered by anything else** (not by a Basic Scan, not by saving Settings), refused while a scan is running, and it **only reads** the disk. Changing the Naming Format therefore requires no rescan, just reopening the dialog. Transcoded items are never analysed.
+Runs **when the Reorganize Dialog is opened** (right away) or its Refresh button is clicked, and **only on the items currently shown by the left-bar filters** (location, movies/series, search text, special filter) — the dialog sends their ids. It is **never triggered by anything else** (not by a scan, not by saving Settings), refused while a scan is running, and it **only reads** the disk. Changing the Naming Format therefore requires no rescan, just reopening the dialog. Transcoded items are never analysed.
 
 Name comparisons are case-insensitive (Windows), and compare against the format expanded with the item's title/year.
 

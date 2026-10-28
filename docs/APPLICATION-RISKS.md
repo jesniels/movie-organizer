@@ -39,6 +39,9 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 | R-25 | Deleting a loose file could take sidecars another video still uses | Delete | Guarded |
 | R-26 | Moving a loose file left its sidecars behind / could take or overwrite others' sidecars | Move | Guarded |
 | R-27 | Moving items out of a common folder (e.g. `James Bond\`) scattered them in the destination | Move | Guarded |
+| R-28 | Moving movies into a bundle could create folders in the wrong place, overwrite, or take other movies' sidecars | Bundles | **Planned** (design) |
+| R-29 | Deleting leftover folders could delete a video or files the user did not see | Leftover folders | **Planned** (design) |
+| R-30 | Loose-file Move/Delete/Reorganize leave the `<stem>.trickplay` folder behind | Move / Delete / Reorganize | **Open** (fix decided) |
 
 ---
 
@@ -145,7 +148,28 @@ Reorganize ([design](reorganizing/REORGANIZE-DESIGN.md)) creates folders for loo
 - **Guard (2026-10-20):** `scanner._is_leaf_folder` treats such a folder as a Bundle when a subfolder holds videos and is not a season folder or a Jellyfin extras folder (`EXTRAS_DIR_NAMES`). Its own videos become Loose Files; each subfolder is scanned as its own item. Test: `py/test/test_scanner_bundles.py`.
 - **Still in place:** the Delete dialog shows a red warning when a movie folder contains more than one video file.
 
+## Bundles — planned operation (design 2026-10-28)
+
+[Design](organization/bundles.md). Not built yet; the guards below are requirements for the implementation.
+
+### R-28 — Moving movies into a bundle
+- **Risk:** *Create bundle* / *Add to bundle* / *Out of bundle* / *Bundle…* create folders and move movies, and *Rename* in the Bundles overview renames a bundle folder. A bad name or parent could create a folder outside the library, a move could overwrite an existing movie, and foldering a loose file could take another movie's sidecars.
+- **Required guards:** an extension of Move, so R-03 (never overwrite, checked again right before each move), R-26 (exact-stem sidecars incl. the `<stem>.trickplay` folder, shared sidecars stay) and R-27 (an emptied source folder removed by `rmdir` only) apply. The only folders created are a new bundle folder directly in a configured Library Location (name must pass `valid_component`; an existing file or folder of that name refuses) and a loose file's own `{title} ({year})` folder inside the bundle (refused without title/year, or when it exists). *Out of bundle* goes to the bundle's Library Location root and never recreates the bundle folder (no R-27 "keep together"). A bundle rename uses the Rename rules (single component, existing target refused, case-only allowed). Series and transcoded items refused. Dry run by default, in-dialog confirmation, Jellyfin warning, a rescan follows. Detection itself never changes files.
+- **Organize's "Create new folder…"** uses the same checks (`valid_component`, only below a configured Library Location).
+
+## Leftover folders — planned operation (design 2026-10-28)
+
+[Design](organization/README.md#leftover-folders-designed-2026-10-28-not-built-yet). Not built yet; the guards below are requirements for the implementation.
+
+### R-29 — Deleting leftover folders
+- **Risk:** a folder listed from the scan cache may have changed (a video copied in, new files added), a folder could lie outside the library, or it could be live data of a working movie (`Heat (1995)\extrafanart\`) or another configured location.
+- **Required guards:** only folders the scan walks through as grouping folders inside an enabled Library or Download Location — never the location itself, never a folder that is or contains another configured folder (library, download, transcode output; enabled or not), never a folder inside a scanned movie or series folder, never a folder on the `ignored_folders` list (left in place, so its parent stays). Nothing ticked by default; dry run by default; in-dialog confirmation. Before deleting, the server re-checks each folder on disk against all of these rules, plus: no video anywhere below it, only files on the configured `leftover:` lists (video extensions can never be added to them) and exactly the files the user saw — otherwise that folder is refused. Files are deleted one by one, then folders with `rmdir` deepest first; no `rmtree`, so anything unexpected stops that folder.
+
 ## Open risks
+
+### R-30 — Loose-file Move/Delete/Reorganize leave the `<stem>.trickplay` folder behind (fix decided 2026-10-28)
+- **Risk:** Jellyfin can store trickplay images in a `<stem>.trickplay\` folder next to the video. `fileops._own_sidecars` and `reorganize.related_files` only collect files, so moving, deleting or foldering a loose file leaves that folder behind (and Delete leaves it as an orphan).
+- **Decided fix (not built):** everywhere a loose file's sidecars are collected (Move R-26, Delete R-25, Reorganize R-19, bundle moves R-28), the `<stem>.trickplay` folder follows under the same exact-stem rule: destination must not exist, a folder shared with another video stays, listed in the dry run, moved only after the video.
 
 ### R-14 — Whole-file NFO copy overwrites without backup or dry run
 - **Risk:** copying a whole NFO replaces the target NFO permanently (hand-edited metadata is lost). Only the field-picker confirmation protects it.
@@ -176,6 +200,7 @@ Reorganize ([design](reorganizing/REORGANIZE-DESIGN.md)) creates folders for loo
 - **`delete-empty-folders.py`** deletes folders with no files or only a lone `.nfo`, never when a video exists anywhere below; requires `--doit`.
 - **"Use transcoded video"** deletes an original with a different extension (e.g. `.mp4` → `.mkv` replaces it), after dry run, confirmation and verification (R-07).
 - **Kill/cancel of a transcode** deletes the partial output file ([ADR 0003](adr/0003-cancel-no-rollback-delete-partial-files.md)).
+- **Jellyfin user data:** Jellyfin identifies items by path, so a moved or renamed movie (Move, Reorganize, bundle moves, bundle rename) may lose its played status and other user data. The bundle dialogs warn about it.
 
 ## General safeguards
 
