@@ -12,11 +12,11 @@ Source design: [bundles.md](bundles.md) · terms: [CONTEXT.md](CONTEXT.md) · AP
 
 | Phase | Scope | Status |
 | :--- | :--- | :--- |
-| 1 | R-30: `<stem>.trickplay` folder follows a loose file (Move, Delete, Reorganize) | Not started |
-| 2 | Scanner + NFO: `set` / `set_id`, the item `bundle` field, row label | Not started |
-| 3 | Detection (`py/ui/bundles.py`) + "not related" registry + read API | Not started |
-| 4 | Bundle moves: into, out of, merge, rename (R-28) | Not started |
-| 5 | Bundle UI: special filter, Bundle dialog, Bundle…, overview, Settings tab | Not started |
+| 1 | R-30: `<stem>.trickplay` folder follows a loose file (Move, Delete, Reorganize) | Done 2026-10-28 — `test_trickplay_sidecars.py` |
+| 2 | Scanner + NFO: `set` / `set_id`, the item `bundle` field, row label | Done 2026-10-28 — `test_scanner_bundles.py` |
+| 3 | Detection (`py/ui/bundles.py`) + "not related" registry + read API | Done 2026-10-28 — `test_bundle_detection.py`, `test_not_related.py` |
+| 4 | Bundle moves: into, out of, merge, rename (R-28) | Done 2026-10-28 — `test_bundle_moves.py` |
+| 5 | Bundle UI: special filter, Bundle dialog, Bundle…, overview, Settings tab | Built 2026-10-28 — waiting for the user's browser test |
 
 Each phase is independently shippable; nothing is visible to the user until Phase 5, except the bundle name on movie rows (Phase 2).
 
@@ -59,7 +59,7 @@ Fixes an existing gap in built code first, so the bundle moves in Phase 4 inheri
 
 **Backend** — new module `py/ui/bundles.py` (documented, typed functions):
 - **Title normalisation** exactly as [bundles.md → Title normalisation](bundles.md#title-normalisation-and-sequel-markers): source (NFO title, else `reorganize.parse_name`), strip year and `QUALITY_STRIP` tags, split one sequel marker (subtitle, part word + number, trailing number, Roman numeral, number words), compare form, minimum base length. Returns `(base, has_marker, is_whole_title)`.
-- **`find_bundle_proposals(items, duplicate_groups, not_related) -> {"proposals": [...], "bundles": [...]}`** — pure, no I/O. Implements rules 1–8 and the three proposal types (*new*, *add*, *merge*), the collection group key (`collection:<id>` / `collection:<name>`, ambiguous names join no ID group), the original-film rule, the priority order (rule 7), suggested name (`sanitize_component`) and pre-selected Library Location. The existing-bundle list gives path, Library Location, movie count and the *nested movie folder?* hint.
+- **`find_bundle_proposals(items, duplicate_groups, not_related, locations) -> {"proposals": [...], "bundles": [...]}`** — pure, no I/O (`locations`: the enabled Library Locations in config order, for the pre-selection and tie-breaks). Implements rules 1–8 and the three proposal types (*new*, *add*, *merge*), the collection group key (`collection:<id>` / `collection:<name>`, ambiguous names join no ID group), the original-film rule, the priority order (rule 7), suggested name (`sanitize_component`) and pre-selected Library Location. The existing-bundle list gives path, Library Location, movie count and the *nested movie folder?* hint.
 - **Duplicate groups come from `duplicates._find_duplicates`** (the same groups the Duplicates filter shows) — not recomputed. They decide "copies count as one" (rule 4) and "a copy of a bundled movie is never proposed" (rules 5 and 8).
 - **Not-related registry** in the same module: load / save `web/not-related.json` (format in [bundles.md](bundles.md#not-related--saying-no)), mark (whole proposal, one movie, merge pair), remove, follow path changes (same pattern as `duplicates._update_not_duplicates_paths`), move proposal-key records to `bundle:<path>` on *Create bundle*, flag records whose path no longer exists as *not found*.
 - Called at the end of every scan and wherever duplicates are recomputed (`scanner.recompute_status`, `duplicates.recompute_duplicates`); the result is kept in `_state["bundles"]` (`py/ui/state.py`). Nothing persisted except `not-related.json`.

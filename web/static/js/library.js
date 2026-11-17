@@ -116,6 +116,8 @@ async function fetchStatus() {
     _buildDuplicateMap(status);
     renderStatusPanel(status);
   } catch (_) {}
+  await fetchBundles();   // the bundle proposals are recomputed with the status
+  await fetchLeftovers();
 }
 
 async function fetchConfig() {
@@ -339,6 +341,8 @@ function applyFilters() {
   } else if (activeSpecialFilter === 'missing-eps') {
     filteredItems = filteredItems.filter(item =>
       item.type === 'series' && Object.keys(item.missing_episodes || {}).length > 0);
+  } else if (activeSpecialFilter === 'bundles' || activeSpecialFilter === 'bundle-members') {
+    filteredItems = filteredItems.filter(bundleFilterMatch);
   }
 
   renderItems();
@@ -381,7 +385,9 @@ function renderItems() {
 
   list.innerHTML = activeSpecialFilter === 'duplicates'
     ? renderDuplicateGroups()
-    : filteredItems.map(i => renderRow(i)).join('');
+    : activeSpecialFilter === 'bundles'
+      ? renderBundleProposalGroups()
+      : filteredItems.map(i => renderRow(i)).join('');
 }
 
 // One card per duplicate group, with the copies as selectable sub-rows
@@ -468,6 +474,10 @@ function renderRow(item) {
 
   const nfoIcon = nfoIconHtml(item);
 
+  const bundleLine = item.bundle
+    ? `<div class="small text-info-emphasis text-truncate item-bundle" title="Bundle: ${esc(item.bundle)}">
+        <i class="bi bi-collection me-1"></i>${esc(item.bundle.split(/[\\/]/).pop())}</div>` : '';
+
   return `
   <div class="item-row d-flex align-items-center gap-2 px-3 py-2 border-bottom border-secondary-subtle${selected}"
        data-id="${esc(item.id)}">
@@ -475,6 +485,7 @@ function renderRow(item) {
       <div class="fw-semibold text-truncate">
         ${esc(item.title)}${yearStr}${epStr}${missBadge}
       </div>
+      ${bundleLine}
       <div class="small text-muted text-truncate" title="${esc(item.path)}">${esc(item.path)}</div>
     </div>
     <div class="d-flex align-items-center gap-1 flex-shrink-0">
@@ -561,7 +572,10 @@ function renderStatusPanel(status) {
         <span>Incomplete NFO</span>
         <span class="ms-auto badge ${incompleteNfoCount > 0 ? 'bg-warning-subtle text-warning-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'}">${incompleteNfoCount}</span>
       </div>
-    </div>`;
+      ${bundleFilterRowsHtml()}
+    </div>
+    ${bundlesOverviewRowHtml()}
+    ${leftoversRowHtml()}`;
 }
 
 // ── Selection ─────────────────────────────────────────────────────────────────

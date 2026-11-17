@@ -24,6 +24,7 @@ CACHE_DIR     = BASE_DIR / "web" / "cache"
 TEMPLATES_DIR = BASE_DIR / "web" / "templates"
 STATIC_DIR    = BASE_DIR / "web" / "static"
 NOT_DUP_PATH  = BASE_DIR / "web" / "not-duplicates.json"
+NOT_RELATED_PATH = BASE_DIR / "web" / "not-related.json"
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 VIDEO_EXTS     = {".mkv", ".mp4", ".avi", ".m4v", ".mov", ".wmv"}
@@ -57,6 +58,17 @@ DEFAULT_NAMING: Dict[str, Any] = {
     "sanitize_names":     True,   # suggest sanitizing illegal names of files/folders in the analysed items
 }
 
+# Leftover folders: what a folder without videos may hold and still be listed (see docs/organization/README.md)
+DEFAULT_LEFTOVER: Dict[str, List[str]] = {
+    "jellyfin_files":    [".nfo", ".jpg", ".jpeg", ".png"],
+    "subtitle_files":    [".srt", ".sub", ".idx", ".ass", ".ssa", ".vtt", ".sup"],
+    "ignored_files":     ["Thumbs.db", "desktop.ini", ".DS_Store"],
+    "jellyfin_folders":  ["extrafanart", "extrathumbs", "*.trickplay"],
+    "thumbnail_folders": ["@eaDir", ".@__thumb"],
+    "system_folders":    ["$RECYCLE.BIN", "System Volume Information", "#recycle"],
+}
+LEFTOVER_FILE_LISTS = ("jellyfin_files", "subtitle_files", "ignored_files")
+
 DEFAULT_CONFIG: Dict[str, Any] = {
     "locations": [],
     "downloads": [],
@@ -65,6 +77,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "local_shares": {},
     "transcode": dict(DEFAULT_TRANSCODE),
     "naming": dict(DEFAULT_NAMING),
+    "leftover": {k: list(v) for k, v in DEFAULT_LEFTOVER.items()},
     "last_move_target": "",   # last configured path used by Move (preselected in the dialog)
 }
 
@@ -211,6 +224,50 @@ def naming_error(naming: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+# ── Leftover lists ─────────────────────────────────────────────────────────────
+def leftover_lists(config: Dict[str, Any]) -> Dict[str, List[str]]:
+    """The six ``leftover:`` lists of ``config``; a missing or invalid list falls back to its default."""
+    raw = config.get("leftover")
+    raw = raw if isinstance(raw, dict) else {}
+    out: Dict[str, List[str]] = {}
+    for key, default in DEFAULT_LEFTOVER.items():
+        val = raw.get(key)
+        out[key] = ([str(v).strip() for v in val if str(v).strip()] if isinstance(val, list) else list(default))
+    return out
+
+
+def leftover_error(lists: Dict[str, List[str]]) -> Optional[str]:
+    """Error text when a file list holds a video extension (or a name ending in one); None when valid."""
+    for key in LEFTOVER_FILE_LISTS:
+        for entry in lists.get(key) or []:
+            low = entry.strip().lower()
+            ext = next((v for v in VIDEO_EXTS if low.endswith(v)), None)
+            if ext:
+                return f"{key}: {entry!r} is a video ({ext}) — videos can never be on a leftover list"
+    return None
+
+
+def file_matches(name: str, entries: List[str]) -> bool:
+    """True when a file name matches a leftover file entry: the whole name, or — for an entry
+    starting with a dot — the end of the name (``.jpg``, ``.DS_Store``). Case-insensitive."""
+    low = name.lower()
+    for entry in entries:
+        e = entry.strip().lower()
+        if e and (low == e or (e.startswith(".") and low.endswith(e))):
+            return True
+    return False
+
+
+def folder_matches(name: str, entries: List[str]) -> bool:
+    """True when a folder name matches a leftover folder entry; ``*`` is the only wildcard. Case-insensitive."""
+    low = name.strip().lower()
+    for entry in entries:
+        e = entry.strip().lower()
+        if e and re.fullmatch(".*".join(re.escape(part) for part in e.split("*")), low):
+            return True
+    return False
+
+
 # ── Config ─────────────────────────────────────────────────────────────────────
 def load_config() -> Dict[str, Any]:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -243,6 +300,7 @@ def load_config() -> Dict[str, Any]:
     cfg["naming"] = {**DEFAULT_NAMING, **(nm if isinstance(nm, dict) else {})}
     if cfg["naming"]["file_equals_folder"]:
         cfg["naming"]["movie_file"] = cfg["naming"]["movie_folder"]
+    cfg["leftover"] = leftover_lists(raw)
     cfg["server_mode"]  = bool(cfg.get("server_mode"))
     ls = cfg.get("local_shares")
     cfg["local_shares"] = ls if isinstance(ls, dict) else {}

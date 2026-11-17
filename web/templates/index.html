@@ -105,6 +105,10 @@
           <button class="btn btn-sm btn-outline-warning" onclick="openMoveDialog()">
             <i class="bi bi-folder-symlink me-1"></i>Move
           </button>
+          <button class="btn btn-sm btn-outline-info" onclick="openBundleManual()"
+                  title="Move the selected movies into an existing or new bundle, or out of their bundle">
+            <i class="bi bi-collection me-1"></i>Bundle…
+          </button>
           <button class="btn btn-sm btn-outline-danger" onclick="openDeleteDialog()">
             <i class="bi bi-trash me-1"></i>Delete
           </button>
@@ -177,6 +181,17 @@
                 <span class="badge bg-secondary ms-1" id="notdup-count">0</span>
               </button>
             </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-notrelated" type="button" role="tab">
+                <i class="bi bi-collection me-1"></i>Not related
+                <span class="badge bg-secondary ms-1" id="nr-count">0</span>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-leftover" type="button" role="tab">
+                <i class="bi bi-folder-x me-1"></i>Leftover folders
+              </button>
+            </li>
           </ul>
           <div class="tab-content">
             <div class="tab-pane fade show active" id="tab-paths" role="tabpanel">
@@ -239,6 +254,31 @@
                 </button>
               </div>
               <div id="notdup-confirm-note" class="small mt-2 text-end"></div>
+            </div>
+            <div class="tab-pane fade" id="tab-notrelated" role="tabpanel">
+              <!-- Code: web/static/js/bundles.js -->
+              <p class="text-muted small">
+                Movies marked “not related” to a bundle or a bundle proposal (and bundles marked “not to be
+                merged”). Remove a record to have the movie proposed again. <em>Not found</em>: the movie or bundle
+                folder no longer exists (e.g. renamed outside the app).
+              </p>
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <input type="text" id="nr-filter"
+                       class="form-control form-control-sm bg-dark text-light border-secondary"
+                       placeholder="Filter — matching records are selected…" oninput="filterNotRelated()">
+                <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="selectNotRelated(true)">All</button>
+                <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="selectNotRelated(false)">None</button>
+              </div>
+              <div id="nr-list" class="border border-secondary rounded p-2 mb-2"></div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-danger" onclick="removeNotRelated(false)">
+                  <i class="bi bi-trash me-1"></i>Remove selected
+                </button>
+                <button class="btn btn-sm btn-outline-danger ms-auto" id="nr-remove-all-btn" onclick="removeNotRelated(true)">
+                  <i class="bi bi-trash-fill me-1"></i>Remove all
+                </button>
+              </div>
+              <div id="nr-confirm-note" class="small mt-2 text-end"></div>
             </div>
             <div class="tab-pane fade" id="tab-transcode" role="tabpanel">
               <p class="text-muted small">
@@ -458,6 +498,66 @@
               </div>
               <div id="nm-error" class="small text-danger mt-2"></div>
             </div>
+            <div class="tab-pane fade" id="tab-leftover" role="tabpanel">
+              <!-- Code: web/static/js/leftovers.js -->
+              <div class="alert alert-info small py-2">
+                <i class="bi bi-shield-check me-1"></i><strong>These lists never delete anything by themselves.</strong>
+                They decide which folders the scan lists under <em>Leftover folders</em>: folders in a Library or Download
+                Location with no video anywhere below them that hold only files from these lists. A folder is deleted only
+                when you tick it in that dialog, turn dry run off and confirm.
+              </div>
+              <p class="text-muted small">
+                Comma-separated. File entries match the whole file name (<code>Thumbs.db</code>) or, starting with a dot,
+                the end of the name (<code>.jpg</code>); case does not matter. Folder entries match the folder name;
+                <code>*</code> is a wildcard. Any other file (<code>.txt</code>, <code>.exe</code>, …) keeps a folder off
+                the list. Videos can never be added. Changes apply at the next scan.
+              </p>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small mb-1" for="lo-jellyfin-files">Jellyfin files</label>
+                <input type="text" id="lo-jellyfin-files" oninput="updateLeftoverSettingsUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                <div class="form-text text-muted mt-0">NFOs and images Jellyfin leaves behind — shown as <em>Jellyfin data</em>.</div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small mb-1" for="lo-subtitle-files">Subtitle files</label>
+                <input type="text" id="lo-subtitle-files" oninput="updateLeftoverSettingsUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                <div class="form-text text-muted mt-0">Subtitles without their video — shown as <em>subtitle, no video</em>.</div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small mb-1" for="lo-ignored-files">Ignored files</label>
+                <input type="text" id="lo-ignored-files" oninput="updateLeftoverSettingsUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                <div class="form-text text-muted mt-0">System files — not shown in the list, deleted with their folder.</div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small mb-1" for="lo-jellyfin-folders">Jellyfin folders</label>
+                <input type="text" id="lo-jellyfin-folders" oninput="updateLeftoverSettingsUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                <div class="form-text text-muted mt-0">Only a label (<em>Jellyfin data</em>): the files inside must still be on
+                  one of the file lists above.</div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small mb-1" for="lo-thumbnail-folders">NAS thumbnail folders</label>
+                <input type="text" id="lo-thumbnail-folders" oninput="updateLeftoverSettingsUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                <div class="form-text text-muted mt-0">Caches the NAS rebuilds (Synology, QNAP). Inside a leftover folder any
+                  file except a video is allowed in them and they are deleted with it; never listed on their own.</div>
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold small mb-1" for="lo-system-folders">System folders</label>
+                <input type="text" id="lo-system-folders" oninput="updateLeftoverSettingsUI()"
+                       class="form-control form-control-sm bg-dark text-light border-secondary font-monospace">
+                <div class="form-text text-muted mt-0">Never listed, never entered, never deleted — a folder that contains one
+                  is not listed either.</div>
+              </div>
+              <div class="d-flex align-items-center gap-2 mt-3">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetLeftoverSettings()">
+                  <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to defaults
+                </button>
+                <div id="lo-settings-error" class="small text-danger"></div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer border-secondary">
@@ -575,6 +675,119 @@
           <button type="button" class="btn btn-secondary" id="move-cancel-btn" data-bs-dismiss="modal">Cancel</button>
           <button type="button" class="btn btn-warning" id="move-confirm-btn" onclick="confirmMove()">
             <i class="bi bi-folder-symlink me-1"></i>Move
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bundle modal: Create / Add to / Merge bundles (proposals) and Bundle… (selected movies) -->
+  <div class="modal fade" id="bundleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-truncate"><i class="bi bi-collection me-2 text-info"></i><span id="bd-title">Bundle</span></h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body small">
+          <div id="bd-body"></div>
+          <div class="text-muted mt-3 mb-2">
+            <i class="bi bi-info-circle me-1"></i>A movie folder moves as a whole; a loose video gets its own
+            <code>Title (Year)</code> folder and takes its NFO, images, subtitles and trickplay folder along.
+          </div>
+          <div class="alert alert-warning py-2 mb-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>Jellyfin identifies movies by their path — a moved movie
+            may lose its played status and other user data.
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="bd-dryrun" checked onchange="bundleCancelConfirm()">
+            <label class="form-check-label text-warning" for="bd-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only, no files moved
+            </label>
+          </div>
+          <div id="bd-progress" class="mt-3 d-none">
+            <div class="alert alert-warning py-2 mb-2">
+              <i class="bi bi-hourglass-split me-1"></i><strong>Moving files — please wait.</strong>
+              Do not close this window. Moves between drives copy the data and can take several minutes per movie.
+            </div>
+            <div class="progress mb-1" style="height:20px">
+              <div id="bd-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-info text-dark"
+                   role="progressbar" style="width:0%">0 / 0</div>
+            </div>
+            <div id="bd-progress-text" class="text-muted text-truncate"></div>
+          </div>
+          <div id="bd-confirm-note" class="mt-2 text-end"></div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-danger me-auto d-none" id="bd-notrelated-btn" onclick="bundleNotRelated()">
+            <i class="bi bi-x-circle me-1"></i>Not related
+          </button>
+          <button type="button" class="btn btn-secondary" id="bd-close-btn" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-info" id="bd-run-btn" onclick="runBundleAction()">Bundle</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bundles overview: every bundle, show its movies, rename it -->
+  <div class="modal fade" id="bundlesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-collection me-2 text-info"></i>Bundles</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body small">
+          <div id="bo-list"></div>
+          <div class="alert alert-warning py-2 mt-3 mb-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>Renaming a bundle changes the path of its movies —
+            Jellyfin may lose their played status and other user data.
+          </div>
+          <div id="bo-confirm-note" class="mt-2 text-end"></div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <div class="form-check me-auto">
+            <input class="form-check-input" type="checkbox" id="bo-dryrun" checked onchange="bundleOverviewCancelConfirm()">
+            <label class="form-check-label text-warning" for="bo-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only
+            </label>
+          </div>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leftover folders: folders without videos holding only listed files; nothing ticked by default -->
+  <div class="modal fade" id="leftoverModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title"><i class="bi bi-folder-x me-2 text-warning"></i>Leftover folders</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body small">
+          <p class="text-muted mb-2">
+            Folders with no video anywhere below them that hold only files from the lists in Settings → Leftover folders
+            (Jellyfin NFOs and images, orphaned subtitles, system files, NAS thumbnails). Tick the ones to delete.
+            Before deleting, the server checks every folder again: anything new or different in it — or a video —
+            keeps that folder.
+          </p>
+          <div id="lo-list"></div>
+          <div id="lo-confirm-note" class="mt-2 text-end"></div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="lo-all-btn" onclick="tickLeftovers(true)">All</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary me-3" id="lo-none-btn" onclick="tickLeftovers(false)">None</button>
+          <div class="form-check me-auto">
+            <input class="form-check-input" type="checkbox" id="lo-dryrun" checked>
+            <label class="form-check-label text-warning" for="lo-dryrun">
+              <i class="bi bi-eye me-1"></i>Dry run — preview only, nothing deleted
+            </label>
+          </div>
+          <button type="button" class="btn btn-secondary" id="lo-close-btn" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-danger" id="lo-run-btn" onclick="runLeftoverDelete()">
+            <i class="bi bi-trash me-1"></i>Delete selected
           </button>
         </div>
       </div>

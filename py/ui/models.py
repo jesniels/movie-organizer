@@ -6,7 +6,7 @@ from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from .settings import DEFAULT_NAMING, DEFAULT_TRANSCODE
+from .settings import DEFAULT_LEFTOVER, DEFAULT_NAMING, DEFAULT_TRANSCODE
 
 Encoder     = Literal["hevc_amf", "hevc_nvenc", "libx265"]
 AudioPrefer = Literal["first", "default", "channels"]
@@ -44,11 +44,32 @@ class NamingConfig(BaseModel):
         return self
 
 
+def _leftover_default(key: str):
+    return Field(default_factory=lambda: list(DEFAULT_LEFTOVER[key]))
+
+
+class LeftoverConfig(BaseModel):
+    """The ``leftover:`` lists; entries are trimmed and empty ones dropped."""
+    jellyfin_files:    List[str] = _leftover_default("jellyfin_files")
+    subtitle_files:    List[str] = _leftover_default("subtitle_files")
+    ignored_files:     List[str] = _leftover_default("ignored_files")
+    jellyfin_folders:  List[str] = _leftover_default("jellyfin_folders")
+    thumbnail_folders: List[str] = _leftover_default("thumbnail_folders")
+    system_folders:    List[str] = _leftover_default("system_folders")
+
+    @model_validator(mode="after")
+    def _trim(self):
+        for key in DEFAULT_LEFTOVER:
+            setattr(self, key, [e.strip() for e in getattr(self, key) if e.strip()])
+        return self
+
+
 class ConfigBody(BaseModel):
     locations: List[str]
     downloads: List[str]
     transcode: Optional[TranscodeConfig] = None
     naming:    Optional[NamingConfig] = None       # None → leave unchanged (older frontend)
+    leftover:  Optional[LeftoverConfig] = None     # None → leave unchanged (older frontend)
     server_mode:  Optional[bool] = None            # None → leave unchanged (older frontend)
     local_shares: Optional[Dict[str, str]] = None  # server path → local share path
     disabled_paths: Optional[List[str]] = None     # None → leave unchanged (older frontend)
@@ -148,4 +169,57 @@ class ReorganizeChange(BaseModel):
 
 class ReorganizeBody(BaseModel):
     changes: List[ReorganizeChange]
+    dry_run: bool = True
+
+
+class NotRelatedRecord(BaseModel):
+    path: str   # movie item id, or a bundle folder (merge proposals)
+    key:  str   # bundle:<folder> | collection:<id or name> | title:<base title>
+
+
+class NotRelatedBody(BaseModel):
+    records: List[NotRelatedRecord] = Field(min_length=1)
+
+
+class BundleMoveBody(BaseModel):
+    """Into an existing bundle (``bundle``) or a new one (``location`` + ``name``)."""
+    item_ids:     List[str] = Field(min_length=1)
+    bundle:       Optional[str] = None
+    location:     Optional[str] = None
+    name:         Optional[str] = None
+    proposal_key: Optional[str] = None   # new-bundle proposal: its not-related records follow the new folder
+    dry_run:      bool = True
+
+    @model_validator(mode="after")
+    def _one_target(self):
+        if bool(self.bundle) == bool(self.location or self.name):
+            raise ValueError("Give either bundle, or location and name")
+        return self
+
+
+class BundleOutBody(BaseModel):
+    item_ids: List[str] = Field(min_length=1)
+    dry_run:  bool = True
+
+
+class BundleMergeBody(BaseModel):
+    source:   str
+    target:   str
+    item_ids: Optional[List[str]] = None   # None → every movie of source
+    dry_run:  bool = True
+
+
+class BundleRenameBody(BaseModel):
+    path:     str
+    new_name: str
+    dry_run:  bool = True
+
+
+class LeftoverFolder(BaseModel):
+    path:  str
+    files: List[str]   # relative to path — exactly the list the user saw (re-checked on disk)
+
+
+class LeftoverDeleteBody(BaseModel):
+    folders: List[LeftoverFolder] = Field(min_length=1)
     dry_run: bool = True

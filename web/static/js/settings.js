@@ -1,6 +1,8 @@
 'use strict';
 // Settings modal: loading/saving settings, paths and local shares, registered not-duplicate
 // pairs, transcode settings and naming settings.
+// A Settings tab that belongs to a feature lives in that feature's script (ADR 0004): "Not related" in
+// bundles.js (loads itself on show.bs.modal), "Leftover folders" in leftovers.js (filled/read from here).
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,6 +27,7 @@ async function loadSettings() {
     renderPathList('downloads-list', 'downloads', toRows(cfg.downloads));
     _fillTranscodeSettings(cfg.transcode);
     _fillNamingSettings(cfg.naming);
+    fillLeftoverSettings(cfg.leftover);
     document.getElementById('tc-output-share').value = _shareFor(shares, ((cfg.transcode || {}).output_root || ''));
     updateServerModeUI();
     fillMoveTargets(cfg);
@@ -204,14 +207,21 @@ async function saveSettings(rescan) {
     showToast('Naming: ' + namingErr, 'warning');
     return;
   }
+  const leftover = readLeftoverSettings();
+  const leftoverErr = leftoverSettingsError(leftover);
+  if (leftoverErr) {
+    showToast('Leftover folders: ' + leftoverErr, 'warning');
+    return;
+  }
   try {
-    const res = await api('POST', '/api/config', { locations, downloads, disabled_paths, transcode, naming, server_mode, local_shares });
-    if (!res.transcode || !res.naming || !res.disabled_paths) {
+    const res = await api('POST', '/api/config', { locations, downloads, disabled_paths, transcode, naming, leftover,
+                                                   server_mode, local_shares });
+    if (!res.transcode || !res.naming || !res.disabled_paths || !res.leftover) {
       showToast('Paths saved, but the server did NOT save all settings — the running server is older than this page. Restart it and save again.', 'danger');
       return;
     }
     configCache = { locations, downloads, disabled_paths: res.disabled_paths, transcode: res.transcode, naming: res.naming,
-                    server_mode, local_shares, last_move_target: configCache.last_move_target };
+                    leftover: res.leftover, server_mode, local_shares, last_move_target: configCache.last_move_target };
     renderLocationFilters();
     applyFilters();
     getModal('settingsModal').hide();

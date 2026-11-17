@@ -12,11 +12,11 @@ Source design: [README → Leftover Folders](README.md#leftover-folders-designed
 
 | Phase | Scope | Status |
 | :--- | :--- | :--- |
-| 1 | Config `leftover:` + Settings tab | Not started |
-| 2 | Detection during the scan + cache + read API | Not started |
-| 3 | Check after an action (Move, Delete, Reorganize, Use transcoded video) | Not started |
-| 4 | Delete API with on-disk re-check (R-29) | Not started |
-| 5 | UI: sidebar row, dialog, "Review…" links | Not started |
+| 1 | Config `leftover:` + Settings tab | Done (2026-10-31) |
+| 2 | Detection during the scan + cache + read API | Done (2026-10-31) |
+| 3 | Check after an action (Move, Delete, Reorganize) | Done (2026-10-31) — bundle moves wired too |
+| 4 | Delete API with on-disk re-check (R-29) | Done (2026-10-31) |
+| 5 | UI: sidebar row, dialog, "Review…" links | Built (2026-10-31) — awaiting user test |
 
 Each phase is independently shippable; nothing is visible to the user until Phase 5, except the Settings tab (Phase 1).
 
@@ -57,7 +57,7 @@ Each phase is independently shippable; nothing is visible to the user until Phas
 
 **Backend:**
 - `leftovers.check_after_action(changed_paths) -> List[dict]` — for each changed item's source parent, walks up to its location root with `classify_folder`, keeps the topmost leftover, adds new ones to `_state["leftovers"]` (no duplicates). A few folders, no full scan; not written to the cache (the next scan does that).
-- Called after a real run of Move (`fileops.move_items`), Delete (`fileops.delete_items`), Reorganize (`reorganize.apply_changes`) and *Use transcoded video*; each result gains `leftovers: N` (the folders this action left behind) for the "Review…" link. Bundle moves call it once the Bundles plan has Phase 4.
+- Called after a real run of Move (`fileops.move_items`), Delete (`fileops.delete_items`) and Reorganize (`reorganize.apply_changes`); each result gains `leftovers: [paths]` (the topmost folders this action left behind; the browser counts the distinct topmost ones across a run's requests) for the "Review…" link. Bundle moves (`fileops._relocate`) call it too. Not *Use transcoded video* — transcoding is a separate matter (decided 2026-10-31).
 
 **Tests:** in `py/test/test_leftovers.py` — moving the last movie out of a common folder with a `folder.jpg` → that folder reported; a parent that still holds a video → nothing; dry run → nothing.
 
@@ -67,8 +67,8 @@ Each phase is independently shippable; nothing is visible to the user until Phas
 
 **Backend** (`py/ui/leftovers.py`, `py/ui/models.py`, `py/ui/app.py`):
 - `POST /api/leftovers/delete` with `LeftoverDeleteBody` (`folders: [{path, files}]`, `dry_run = True`). 409 while a scan runs.
-- Per folder, **re-check on disk** with the current settings — every R-29 rule: inside an enabled location, not the location itself, not (containing) a configured folder, no ancestor up to the location root produces an item (holds a video, or is a series with episodes — checked on disk, never from the cached items), no `system_folders`, no video below, only listed files, and **exactly the `files` the user saw**. Any difference → that folder refused with the reason.
-- Then delete the listed files one by one and the folders with `rmdir` deepest first; anything unexpected stops that folder (reported). Dry run returns the same operations without touching anything. Remove deleted folders from `_state["leftovers"]`.
+- Per folder, **re-check on disk** with the current settings — every R-29 rule: inside an enabled location, not the location itself, not (containing) a configured folder, no ancestor up to the location root produces an item (a movie or series folder as the scanner sees it — checked on disk, never from the cached items), no `system_folders`, no video below, only listed files, and **exactly the `files` the user saw**. Any difference → that folder refused with the reason.
+- Then delete the listed files one by one and the folders with `rmdir` deepest first; anything unexpected stops that folder (reported). Dry run returns the same operations without touching anything. Remove deleted folders from `_state["leftovers"]` and from the location's cache (`scanner.drop_cached_leftovers`).
 
 **Tests:** in `py/test/test_leftovers.py` (delete part) — content differing from the sent list → refused; a file added in the meantime → folder stays; a video copied in → refused; inside a movie folder (on disk) → refused; a configured location → refused; `@eaDir` with `SYNOINDEX_MEDIA_INFO` → deleted with its parent; dry run touches nothing.
 

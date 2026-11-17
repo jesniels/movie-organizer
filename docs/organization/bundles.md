@@ -208,9 +208,10 @@ An extension of **Move** (`fileops.move_items`), so every Move guard applies: ne
 ## Implementation notes
 
 - `py/ui/nfo.py`: read the collection (`<set><name>`, older `<set>text`) into the NFO data as `set`, and `<collectionnumber>` as `set_id`. Existing caches lack them until the next full rescan; until then only title-based proposals appear.
-- New module `py/ui/bundles.py`: `find_bundle_proposals(items, not_related)` (pure, no I/O) and the not-related registry (load / save / mark / remove / follow path changes). Called from the scan and wherever duplicates are recomputed.
+- New module `py/ui/bundles.py`: `find_bundle_proposals(items, duplicate_groups, not_related, locations)` (pure, no I/O) and the not-related registry (load / save / mark / remove / follow path changes). Called from the scan and wherever duplicates are recomputed.
 - Bundle membership: a movie's bundle is the folder holding its own folder (or holding the loose file), when that folder is directly in a Library Location root — never the root itself — **and holds at least one movie folder** (the scanner's `_has_movie_subfolder` test) **or loose files of at least two different movies** (title + year). The scanner stores it as the item's `bundle` field: the **full path** of the bundle folder (or empty) — two Library Locations can both have a `James Bond\`; the library list shows its last component. For the parts of one movie (`Heat (1995)\Heat - CD1.mkv`) the item's own folder is not a bundle, so `bundle` is empty.
 - Proposals (all three types), the list of existing bundles and the overview data come from `GET /api/bundles` ([API](solution-design.md#bundle-api-endpoints)), which the browser fetches together with `/api/status` whenever it reloads the library (after a scan, an action or a not-related change). They are kept in `_state` next to the duplicate groups and recomputed with them.
 - Move extension in `py/ui/fileops.py` (new bundle folder, loose-file foldering), request model in `models.py`, thin routes in `app.py`.
 - Front end: new `web/static/js/bundles.js` (special filter, Bundle dialog, Bundle… button, Bundles overview, Settings tab), added to `UI_SCRIPTS` (ADR 0004).
-- Risks: [APPLICATION-RISKS.md](../APPLICATION-RISKS.md) R-28 (planned).
+- Risks: [APPLICATION-RISKS.md](../APPLICATION-RISKS.md) R-28 (guarded), R-30 (guarded).
+- Built 2026-10-28 ([plan](BUNDLES-PLAN.md)); the browser flows await the user's test.

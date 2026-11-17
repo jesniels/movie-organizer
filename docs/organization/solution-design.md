@@ -171,7 +171,7 @@ The plan endpoint is called when the user opens the preview dialog. The execute 
 
 Full design: [bundles.md](bundles.md). In short:
 
-- **Detection** — new module `py/ui/bundles.py` with a pure `find_bundle_proposals(items, not_related)`: groups movies by NFO collection (`<collectionnumber>` ID, else `<set>` name — both newly parsed in `nfo.py`), then by normalised title (NFO title, else the parsed name; title-only groups need the original film plus a sequel marker); never groups different collections; needs two different movies (a duplicate group counts once); never proposes a copy of a movie the bundle already has; proposes merging same-name bundles in two Library Locations. Exact rules: [bundles.md](bundles.md#rules). Runs at the end of every scan and wherever duplicates are recomputed; results live in `_state` only (recomputed from the cache at startup, nothing persisted).
+- **Detection** — new module `py/ui/bundles.py` with a pure `find_bundle_proposals(items, duplicate_groups, not_related, locations)`: groups movies by NFO collection (`<collectionnumber>` ID, else `<set>` name — both newly parsed in `nfo.py`), then by normalised title (NFO title, else the parsed name; title-only groups need the original film plus a sequel marker); never groups different collections; needs two different movies (a duplicate group counts once); never proposes a copy of a movie the bundle already has; proposes merging same-name bundles in two Library Locations. Exact rules: [bundles.md](bundles.md#rules). Runs at the end of every scan and wherever duplicates are recomputed; results live in `_state` only (recomputed from the cache at startup, nothing persisted).
 - **Not related** — records `{path, key}` in `web/not-related.json` (format in [bundles.md](bundles.md#not-related--saying-no)), following path changes like `not-duplicates.json`; a Settings tab lists and removes them.
 - **Moving into a bundle** — an extension of Move: may create one new bundle folder directly in a Library Location, and a loose file's own `Title (Year)` folder inside the bundle. All Move guards apply (APPLICATION-RISKS R-03, R-26, R-27; new R-28).
 
@@ -186,11 +186,13 @@ Full design: [bundles.md](bundles.md). In short:
 | `POST` | `/api/bundles/not-related/remove` | Removes the selected records. |
 | `POST` | `/api/bundles/out` | *Out of bundle*: moves the selected movies from their bundle to the root of its Library Location (loose files get their own `{title} ({year})` folder); no keep-together. `{ item_ids, dry_run }`, dry run by default. |
 | `POST` | `/api/bundles/rename` | Renames a bundle folder (Bundles overview). `{ path, new_name, dry_run }`; Rename rules, case-only change allowed, not-related and not-a-duplicate records follow. Dry run by default. |
-| `POST` | `/api/bundles/merge` | *Merge bundles*: moves every movie of `source` into `target` (both existing bundle folders in different Library Locations), as *Add to bundle* does. `{ source, target, dry_run }`, dry run by default. |
+| `POST` | `/api/bundles/merge` | *Merge bundles*: moves every movie of `source` (or only `item_ids`, for per-movie progress) into `target` (both existing bundle folders in different Library Locations), as *Add to bundle* does. `{ source, target, item_ids?, dry_run }`, dry run by default. |
 
 `GET /api/bundles` returns `{ proposals, bundles }`: `proposals` = every proposal (`type`: `new` / `add` / `merge`, `key`, `reason`, suggested `name`, member item ids, context members, pre-selected location or target); `bundles` = every existing bundle with its path, Library Location, movie count and the *nested movie folder?* hint — the data for the Bundle… picker and the Bundles overview. The browser fetches it together with `/api/status` whenever it reloads the library.
 
-Request models (`models.py`): `BundleMoveBody` (`item_ids`, `bundle` path **or** `location` + `name`, `dry_run = True`), `BundleOutBody`, `BundleRenameBody`, `BundleMergeBody`, `NotRelatedBody` (records to add or remove).
+Request models (`models.py`): `BundleMoveBody` (`item_ids`, `bundle` path **or** `location` + `name`, `proposal_key` of a new-bundle proposal so its not-related records follow the new folder, `dry_run = True`), `BundleOutBody`, `BundleRenameBody`, `BundleMergeBody`, `NotRelatedBody` (`records: [{path, key}]` to add or remove).
+
+Move results are per item, as for Move, plus `folder` (a loose file's new own folder) and `created` (a new bundle folder). Loose parts of one movie (`CD1`/`CD2`) share one new folder only when they are in the same request, so the browser plans the real run with a dry run and sends one request per movie (the parts together).
 
 ### Leftover Folders API Endpoints
 

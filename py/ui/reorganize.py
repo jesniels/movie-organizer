@@ -15,6 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from fastapi import HTTPException
 
 from .duplicates import _update_not_duplicates_paths
+from .leftovers import leftover_paths_after
 from .nfo import _nfo_quality, parse_nfo
 from .settings import (
     EPISODE_RE,
@@ -77,6 +78,16 @@ def _file_names(folder: str) -> List[str]:
         return []
 
 
+def _dir_names(folder: str) -> List[str]:
+    """Names of the folders directly inside folder."""
+    try:
+        with os.scandir(_fs(folder)) as it:
+            return [e.name for e in it if e.is_dir(follow_symlinks=False)]
+    except OSError as exc:
+        log.warning("Reorganize: cannot read %s: %s", folder, exc)
+        return []
+
+
 def _root_of(path: str, roots: List[str]) -> Optional[str]:
     """The longest configured location/download folder containing path."""
     pk = _key(path)
@@ -126,6 +137,21 @@ def related_files(video: str, siblings: Iterable[str]) -> List[str]:
         if os.path.splitext(low)[0] == stem or low.startswith((stem + ".", stem + "-")):
             out.append(n)
     return sorted(out, key=str.lower)
+
+
+def trickplay_folder(video: str, files: Iterable[str], dirs: Iterable[str]) -> Optional[str]:
+    """Name of the video's own Jellyfin ``<stem>.trickplay`` folder among ``dirs`` (exact stem, any case), or None.
+
+    None too when another video in the folder has the same stem (``Heat.mkv`` + ``Heat.mp4``): the
+    folder is shared and stays where it is (R-30).
+    """
+    v = video.lower()
+    stem = os.path.splitext(v)[0]
+    for f in files:
+        f_stem, f_ext = os.path.splitext(f.lower())
+        if f_stem == stem and f_ext in VIDEO_EXTS and f.lower() != v:
+            return None
+    return next((d for d in dirs if d.lower() == stem + ".trickplay"), None)
 
 
 def _follow(name: str, old_stem: str, new_stem: str) -> str:
@@ -326,6 +352,10 @@ def _analyse_loose(item: Dict[str, Any], naming: Dict[str, Any], planned: Dict[s
     prop["images"] = images
     prop["move"] = [{"from": n, "to": _follow(n, stem, new_stem)}
                     for n in [vname] + related if n not in images]
+    trickplay = trickplay_folder(vname, siblings, _dir_names(parent))
+    if trickplay:
+        # Jellyfin finds it by the video's stem, so it is renamed along with the video (R-30)
+        prop["move"].append({"from": trickplay, "to": _follow(trickplay, stem, new_stem), "kind": "folder"})
     if new_stem != stem:
         prop["file"] = {"from": vname, "to": new_stem + ext, "follows": [m for m in prop["move"][1:]], "conflict": False}
     return prop
@@ -644,11 +674,12 @@ def _plan_loose(c: Any, item: Dict[str, Any], prop: Dict[str, Any], reasons: Dic
         _component(new_stem + ext)
         pl.mkdir(target)
         names = [m["from"] for m in prop["move"]] + ([] if c.delete_images else prop["images"])
+        kinds = {m["from"]: m.get("kind", "file") for m in prop["move"]}
         for n in names:
             # The item id becomes the new folder, so "not a duplicate" marks follow the video there
             track = (video, target) if n == os.path.basename(video) else None
-            pl.rename(os.path.join(parent, n), os.path.join(target, _follow(n, stem, new_stem)), "file",
-                      op="move", track=track)
+            pl.rename(os.path.join(parent, n), os.path.join(target, _follow(n, stem, new_stem)),
+                      kinds.get(n, "file"), op="move", track=track)
     if c.delete_images:
         for img in prop["images"]:
             pl.delete(os.path.join(parent, img))
@@ -785,7 +816,9 @@ def _execute(ops: List[Dict[str, Any]]) -> Tuple[int, Optional[str]]:
             return i, f"{o['op']} failed for {o['from'] or o['to']}: {exc}"
         log.info("Reorganize: %s %s%s", o["op"], o["from"] or o["to"], f" → {o['to']}" if o["from"] and o["to"] else "")
         if o.get("_track"):
+            from .bundles import update_not_related_paths   # late import: bundles imports this module
             _update_not_duplicates_paths(*o["_track"])
+            update_not_related_paths(*o["_track"])
     return len(ops), None
 
 
@@ -845,6 +878,7 @@ def apply_changes(changes: List[Any], dry_run: bool) -> List[Dict[str, Any]]:
         if err:
             res["error"] = f"{err} — {done} of {len(pl.ops)} operation(s) were done"
         res["done"] = done
+        res["leftovers"] = leftover_paths_after([o["from"] for o in pl.ops[:done] if o.get("from")], config)
     log.info("Reorganize %s: %d change(s), %d ok, %d refused/failed", "dry run" if dry_run else "execute",
              len(results), sum(r["ok"] for r in results), sum(not r["ok"] for r in results))
     return results

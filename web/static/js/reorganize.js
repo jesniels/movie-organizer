@@ -801,6 +801,7 @@ async function runReorganize() {
   roConfirm = false;
   _setRoBusy(true);
   let ok = 0, failed = 0, skipped = 0, stopped = '';
+  const executed = [];
   for (let n = 0; n < picked.length; n++) {
     const { row, change } = picked[n];
     if (stopped) {
@@ -812,6 +813,7 @@ async function runReorganize() {
     note.textContent = `Working on ${n + 1} of ${picked.length}…`;
     try {
       const [r] = await api('POST', '/api/reorganize', { changes: [change], dry_run: false });
+      executed.push(r);
       _roShowResult(row, r);
       // Done rows are locked; failed rows stay selectable so they can be fixed and run again
       if (r.ok) {
@@ -837,7 +839,8 @@ async function runReorganize() {
   _setRoBusy(false);
   note.innerHTML = `<span class="${failed || skipped ? 'text-warning' : 'text-success'}">Done: ${ok} ok`
     + (failed ? `, ${failed} failed` : '') + (skipped ? `, ${skipped} not attempted` : '')
-    + '.</span> Done rows are locked — continue with the others, or rescan to see the new names in the library.';
+    + '.</span> Done rows are locked — continue with the others, or rescan to see the new names in the library.'
+    + leftoverReviewLink(executed, 'reorganizeModal');
   document.getElementById('ro-rescan-btn').classList.remove('d-none');
   _roUpdateDupButton();   // done duplicates are locked and no longer counted
   _roUpdateCounts();

@@ -8,7 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from .bundles import movie_key, recompute_bundles
 from .duplicates import _dismissed_pairs, _find_duplicates
+from .leftovers import LeftoverCollector, leftover_from_cache, leftover_to_cache
 from .nfo import _nfo_quality, parse_nfo
 from .settings import (
     CACHE_DIR,
@@ -19,6 +21,7 @@ from .settings import (
     _clean_title,
     enabled_paths,
     fs_path,
+    leftover_lists,
     load_config,
     log,
     safe_transcoded_root,
@@ -224,7 +227,10 @@ def _process_leaf(entry: Path, loc: str, items: List[Dict[str, Any]]) -> None:
 
 
 def _scan_recursive(folder: Path, loc: str, items: List[Dict[str, Any]],
-                    excluded: frozenset = frozenset()) -> None:
+                    excluded: frozenset = frozenset(),
+                    leftovers: Optional[LeftoverCollector] = None) -> None:
+    """Scan ``folder`` into ``items``. With ``leftovers``, the grouping folders below it (and emptied series
+    shells) are checked for leftover folders; only the topmost of a tree is kept."""
     try:
         entries = sorted(folder.iterdir(), key=lambda e: e.name.lower())
     except PermissionError as exc:
@@ -244,21 +250,76 @@ def _scan_recursive(folder: Path, loc: str, items: List[Dict[str, Any]],
             log.info("Skipping %s — it is a separately configured location.", entry)
             continue
         if _is_leaf_folder(entry):
+            before = len(items)
             _process_leaf(entry, loc, items)
+            if leftovers is not None and len(items) == before:
+                leftovers.collect(str(entry))   # an emptied series shell
+        elif leftovers is not None and leftovers.collect(str(entry)):
+            continue   # a leftover folder has no video below it — nothing to scan there
         else:
             log.debug("Descending into grouping folder: %s", entry.name)
-            _scan_recursive(entry, loc, items, excluded)
+            _scan_recursive(entry, loc, items, excluded,
+                            leftovers if leftovers is not None and leftovers.enters(entry.name) else None)
 
 
-def scan_path(base: Path, loc: str, excluded: frozenset = frozenset()) -> List[Dict[str, Any]]:
+def scan_path(base: Path, loc: str, excluded: frozenset = frozenset(),
+              leftovers: Optional[LeftoverCollector] = None) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     if not base.is_dir():
         log.warning("Skipping %s location — not a directory: %s", loc, base)
         return items
     log.info("Scanning %s: %s", loc, base)
-    _scan_recursive(base, loc, items, excluded)
+    _scan_recursive(base, loc, items, excluded, leftovers)
+    assign_bundles(items, str(base) if loc == "library" else None)
     log.info("Finished scanning %s: %d item(s) found", loc, len(items))
     return items
+
+
+def assign_bundles(items: List[Dict[str, Any]], root: Optional[str]) -> None:
+    """Set every item's ``bundle``: the full path of the Bundle its movie is in, or "".
+
+    ``items`` are the items of one location; ``root`` is its folder, or None for a Download or
+    transcode location (no bundles there). A Bundle is a folder directly in the root that holds at
+    least one movie folder or loose files of two different movies. A folder holding only the loose
+    files of one movie (``CD1``/``CD2``, multi-version files) is that movie's own folder, so its
+    bundle is the folder above it. Series never have a bundle, and a series folder does not make
+    its parent a bundle.
+    """
+    for it in items:
+        it["bundle"] = ""
+    if not root:
+        return
+    key = lambda p: os.path.normcase(os.path.normpath(p))
+    rk = key(root)
+    item_folders: Dict[str, int] = {}     # folder → number of movie folders directly inside
+    loose_keys: Dict[str, set] = {}       # folder → movies (title, year) of the loose files directly inside
+    for it in items:
+        if it["type"] != "movie":
+            continue
+        if it["id"] == it["path"]:
+            parent = key(os.path.dirname(it["path"]))
+            item_folders[parent] = item_folders.get(parent, 0) + 1
+        else:
+            loose_keys.setdefault(key(it["path"]), set()).add(movie_key(it))
+    one_movie = [k for k, v in loose_keys.items() if k != rk and k not in item_folders and len(v) == 1]
+    for k in one_movie:
+        parent = os.path.dirname(k)
+        item_folders[parent] = item_folders.get(parent, 0) + 1
+    own_folders = {k for k in one_movie if k not in item_folders}
+
+    def is_bundle(k: str) -> bool:
+        return (k != rk and os.path.dirname(k) == rk
+                and (item_folders.get(k, 0) >= 1 or len(loose_keys.get(k, ())) >= 2))
+
+    for it in items:
+        if it["type"] != "movie":
+            continue
+        if it["id"] == it["path"] or key(it["path"]) in own_folders:
+            candidate = os.path.dirname(it["path"])
+        else:
+            candidate = it["path"]
+        if is_bundle(key(candidate)):
+            it["bundle"] = candidate
 
 
 def _nested_locations(path: str, all_paths: List[str]) -> frozenset:
@@ -330,6 +391,10 @@ def _item_to_cache(item: Dict[str, Any], root: str) -> Dict[str, Any]:
         elif isinstance(out.get("id"), str):
             out["id"] = _rel_or_abs(out["id"], root)
         out["path"] = _rel_or_abs(base, root)
+    if out.get("bundle"):
+        out["bundle"] = _rel_or_abs(out["bundle"], root)
+    else:
+        out.pop("bundle", None)   # "" on load
     return out
 
 
@@ -343,6 +408,8 @@ def _item_from_cache(item: Dict[str, Any], root: str) -> Dict[str, Any]:
     if base is not None and not os.path.isabs(base):
         base = os.path.normpath(os.path.join(root, base))
         out["path"] = base
+    bundle = out.get("bundle") or ""
+    out["bundle"] = os.path.normpath(os.path.join(root, bundle)) if bundle and not os.path.isabs(bundle) else bundle
     if "id" not in out:
         out["id"] = base
     elif isinstance(out["id"], str) and not os.path.isabs(out["id"]):
@@ -369,7 +436,8 @@ def _cache_file_for(path: str) -> Path:
     return CACHE_DIR / f"{safe}.json"
 
 
-def _save_location_cache(path: str, loc_type: str, items: List[Dict], scan_time: str) -> None:
+def _save_location_cache(path: str, loc_type: str, items: List[Dict], scan_time: str,
+                         leftovers: Optional[List[Dict[str, Any]]] = None) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
         "path":          path,
@@ -377,6 +445,8 @@ def _save_location_cache(path: str, loc_type: str, items: List[Dict], scan_time:
         "last_scan":     scan_time,
         "items":         [_item_to_cache(i, path) for i in items],
     }
+    if leftovers is not None:
+        payload["leftovers"] = [leftover_to_cache(e, path) for e in leftovers]
     try:
         cf  = _cache_file_for(path)
         tmp = cf.with_suffix(".tmp")
@@ -385,6 +455,31 @@ def _save_location_cache(path: str, loc_type: str, items: List[Dict], scan_time:
         log.info("Cache saved: %s (%d items)", cf.name, len(items))
     except OSError as exc:
         log.warning("Could not save cache for %s: %s", path, exc)
+
+
+def drop_cached_leftovers(root: str, paths: List[str]) -> None:
+    """Remove deleted leftover folders (and any inside them) from the cache of location ``root``."""
+    cf = _cache_file_for(root)
+    try:
+        payload = json.loads(cf.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    entries = payload.get("leftovers") if isinstance(payload, dict) else None
+    if not entries:
+        return
+    gone = [os.path.normcase(os.path.normpath(p)) for p in paths]
+
+    def deleted(entry: Dict[str, Any]) -> bool:
+        p = os.path.normcase(os.path.normpath(os.path.join(root, entry.get("path") or "")))
+        return any(p == g or p.startswith(g.rstrip("\\/") + os.sep) for g in gone)
+
+    payload["leftovers"] = [e for e in entries if not (isinstance(e, dict) and deleted(e))]
+    try:
+        tmp = cf.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(cf)
+    except OSError as exc:
+        log.warning("Could not update cache for %s: %s", root, exc)
 
 
 def _compute_status(lib: List[Dict[str, Any]], dl: List[Dict[str, Any]],
@@ -432,6 +527,8 @@ def _load_all_caches(config: Dict[str, Any]) -> bool:
     lib: List[Dict] = []
     dl:  List[Dict] = []
     tr:  List[Dict] = []
+    leftovers: List[Dict] = []
+    lists = leftover_lists(config)
     scan_times: List[str] = []
     loaded = 0
     for cf in files:
@@ -444,8 +541,14 @@ def _load_all_caches(config: Dict[str, Any]) -> bool:
                 continue
             root = payload.get("path", "")
             loaded_items = [_item_from_cache(i, root) for i in payload["items"]]
+            if types[cf] != "library":
+                for i in loaded_items:
+                    i["bundle"] = ""   # bundles exist only in Library Locations
             # The configured role wins over the cached one (a folder may have been reassigned)
             {"download": dl, "transcoded": tr}.get(types[cf], lib).extend(loaded_items)
+            if types[cf] in ("library", "download"):
+                leftovers.extend(leftover_from_cache(e, root, types[cf], lists)
+                                 for e in payload.get("leftovers") or [] if isinstance(e, dict))
             if payload.get("last_scan"):
                 scan_times.append(payload["last_scan"])
             loaded += 1
@@ -460,8 +563,10 @@ def _load_all_caches(config: Dict[str, Any]) -> bool:
         _state["transcoded"] = tr
         _state["last_scan"]  = max(scan_times) if scan_times else None
         _state["status"]     = status
-    log.info("Loaded %d cache file(s): %d library + %d download + %d transcoded item(s)",
-             loaded, len(lib), len(dl), len(tr))
+        _state["leftovers"]  = leftovers
+    recompute_bundles()
+    log.info("Loaded %d cache file(s): %d library + %d download + %d transcoded item(s), %d leftover folder(s)",
+             loaded, len(lib), len(dl), len(tr), len(leftovers))
     return True
 
 
@@ -516,6 +621,7 @@ def run_scan(_ignored_config: Any = None) -> None:
         dl:  List[Dict[str, Any]] = []
         tr:  List[Dict[str, Any]] = []
         buckets = {"library": lib, "download": dl, "transcoded": tr}
+        leftovers: List[Dict[str, Any]] = []
         all_paths = _nesting_paths(config)
         for entry in loc_entries:
             if entry["status"] == "missing":
@@ -524,13 +630,19 @@ def run_scan(_ignored_config: Any = None) -> None:
             with _lock:
                 _state["current_path"] = p
                 entry["status"] = "scanning"
+            # Transcode output is temporary — not checked for leftover folders
+            collector = LeftoverCollector(config, p, entry["location_type"]) \
+                if entry["location_type"] != "transcoded" else None
             location_items = scan_path(Path(p), entry["location_type"],
-                                       _nested_locations(p, all_paths))
+                                       _nested_locations(p, all_paths), collector)
             with _lock:
                 entry["status"] = "done"
                 entry["items"]  = len(location_items)
             buckets[entry["location_type"]].extend(location_items)
-            _save_location_cache(p, entry["location_type"], location_items, scan_time)
+            if collector is not None:
+                leftovers.extend(collector.found)
+            _save_location_cache(p, entry["location_type"], location_items, scan_time,
+                                 collector.found if collector is not None else None)
 
         status = _compute_status(lib, dl, tr)
 
@@ -540,6 +652,8 @@ def run_scan(_ignored_config: Any = None) -> None:
             _state["transcoded"] = tr
             _state["last_scan"] = scan_time
             _state["status"]    = status
+            _state["leftovers"] = leftovers
+        recompute_bundles()
 
     except Exception as exc:
         log.error("Scan failed: %s", exc)
@@ -574,12 +688,13 @@ def refresh_transcoded() -> None:
 
 
 def recompute_status() -> None:
-    """Recompute counts and duplicates from the in-memory item lists (no disk access)."""
+    """Recompute counts, duplicates and bundle proposals from the in-memory item lists (no disk access)."""
     with _lock:
         lib, dl, tr = list(_state["library"]), list(_state["downloads"]), list(_state["transcoded"])
     status = _compute_status(lib, dl, tr)
     with _lock:
         _state["status"] = status
+    recompute_bundles()
 
 
 def reload_if_locations_changed(before: List[Tuple[str, str]], config: Dict[str, Any]) -> None:
@@ -592,4 +707,5 @@ def reload_if_locations_changed(before: List[Tuple[str, str]], config: Dict[str,
     if not _load_all_caches(config):
         with _lock:
             _state["library"], _state["downloads"], _state["transcoded"] = [], [], []
+            _state["leftovers"] = []
         recompute_status()

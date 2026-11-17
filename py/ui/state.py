@@ -18,6 +18,8 @@ _state: Dict[str, Any] = {
     "scan_error":    None,
     "scan_info":     None,   # details of ongoing/last scan: started, finished, locations
     "transcode":     None,   # current/last transcode job (see transcode.py)
+    "bundles":       {"proposals": [], "bundles": []},   # bundle detection result (see bundles.py)
+    "leftovers":     [],     # leftover folders: scan + after-action checks (see leftovers.py)
 }
 
 

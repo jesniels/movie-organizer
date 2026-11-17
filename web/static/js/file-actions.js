@@ -138,8 +138,23 @@ async function confirmDelete() {
       }));
       return;
     }
-    closeModalDone('deleteModal');
-    handleActionResults(results, false, 'delete', 'deleted');
+    const review = leftoverReviewAction(results);
+    if (review) {
+      // The action left folders behind: a result dialog with the Review… button instead of the toast
+      const fail = results.filter(r => !r.ok);
+      const ok = results.filter(r => r.ok);
+      const lines = [...fail.map(r => `✗ ${r.id}\n  ${r.error}`),
+                     ...ok.map(r => `✓ deleted ${r.path}${(r.also || []).map(a => `\n  + ${a}`).join('')}`
+                       + (r.warning ? `\n  ⚠ ${r.warning}` : ''))];
+      const status = `Deleted ${ok.length} item(s)` + (fail.length ? ` · ${fail.length} failed.` : '.');
+      document.getElementById('deleteModal').addEventListener('hidden.bs.modal', () => showResultModal({
+        title: 'Delete Result', good: !fail.length, status, lines, action: review,
+      }), { once: true });
+      closeModalDone('deleteModal');
+    } else {
+      closeModalDone('deleteModal');
+      handleActionResults(results, false, 'delete', 'deleted');
+    }
     // Drop deleted items now so a copy left alone in its group stops showing as a duplicate
     const gone = new Set(results.filter(r => r.ok).map(r => r.id));
     allItems = allItems.filter(i => !gone.has(i.id));
@@ -300,6 +315,7 @@ function _moveResultLines(results) {
   const ok   = results.filter(r => r.ok).map(r =>
     `✓ ${r.from}\n  → ${r.to}${(r.also || []).map(a => `\n  + ${a}`).join('')}`
     + `${r.cross_drive ? `\n  (other drive: copies ${fmtSize(r.size)})` : ''}${r.warning ? `\n  ⚠ ${r.warning}` : ''}`
+    + (r.replaces || []).map(f => `\n  ↻ replaces the image-only folder ${f}`).join('')
     + (r.removed_folders || []).map(f => `\n  − empty folder removed: ${f}`).join(''));
   return [...fail, ...ok];
 }
@@ -357,15 +373,17 @@ async function confirmMove() {
     triggerScan();
   }
   const warned = results.filter(r => r.warning).length;
-  if (!fail && !aborted && !warned) {
+  const review = leftoverReviewAction(results);
+  if (!fail && !aborted && !warned && !review) {
     afterMoveModalHidden(() => showToast(`moved: ${ok} item(s)`, 'success'));
     return;
   }
-  let status = `Moved ${ok} of ${ids.length} item(s). ${fail} failed.`;
+  const good = !fail && !aborted && !warned;
+  let status = good ? `Moved ${ok} item(s).` : `Moved ${ok} of ${ids.length} item(s). ${fail} failed.`;
   if (warned) status += `<br>${warned} item(s) moved, but some related files stayed behind.`;
   if (aborted) status += `<br>Stopped: ${esc(aborted)} — ${ids.length - results.length} item(s) not attempted.`;
   afterMoveModalHidden(() => showResultModal({
-    title: 'Move Result', good: false, status, lines: _moveResultLines(results),
+    title: 'Move Result', good, status, lines: _moveResultLines(results), action: review,
   }));
 }
 

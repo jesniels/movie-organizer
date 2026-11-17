@@ -18,17 +18,36 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .bundles import current_bundles, list_not_related, mark_not_related, remove_not_related
 from .duplicates import _load_not_duplicates, mark_not_duplicate, remove_not_duplicate_pairs
-from .fileops import delete_items, file_info, move_groups, move_items, play_item, rename_item
+from .fileops import (
+    bundle_merge,
+    bundle_move_items,
+    bundle_out_items,
+    bundle_rename,
+    delete_items,
+    file_info,
+    move_groups,
+    move_items,
+    play_item,
+    rename_item,
+)
+from .leftovers import current_leftovers, delete_leftovers
 from .models import (
+    BundleMergeBody,
+    BundleMoveBody,
+    BundleOutBody,
+    BundleRenameBody,
     ConfigBody,
     DeleteBody,
     EncoderTestBody,
+    LeftoverDeleteBody,
     MoveBody,
     MoveGroupsBody,
     NfoCopyBody,
     NotDuplicateBody,
     NotDupRemoveBody,
+    NotRelatedBody,
     PlayBody,
     RenameBody,
     ReorganizeBody,
@@ -47,6 +66,7 @@ from .settings import (
     TEMPLATES_DIR,
     _write_config,
     enabled_paths,
+    leftover_error,
     load_config,
     log,
     naming_error,
@@ -108,6 +128,8 @@ UI_SCRIPTS: List[str] = [
     "file-actions.js",
     "reorganize.js",
     "transcode.js",
+    "bundles.js",
+    "leftovers.js",
     "main.js",
 ]
 
@@ -162,6 +184,12 @@ def api_save_config(body: ConfigBody):
         if err:
             raise HTTPException(400, err)
         cfg["naming"] = naming
+    if body.leftover is not None:
+        leftover = body.leftover.model_dump()
+        err = leftover_error(leftover)
+        if err:
+            raise HTTPException(400, err)
+        cfg["leftover"] = leftover
     if body.server_mode is not None:
         cfg["server_mode"] = body.server_mode
     if body.local_shares is not None:
@@ -178,7 +206,7 @@ def api_save_config(body: ConfigBody):
              len(cfg["locations"]), len(cfg["downloads"]), len(cfg["disabled_paths"]),
              cfg.get("server_mode"), len(cfg.get("local_shares") or {}),
              tc.get("ffmpeg_path"), tc.get("ffprobe_path"), tc.get("output_root"))
-    return {"ok": True, "transcode": tc, "naming": cfg["naming"],
+    return {"ok": True, "transcode": tc, "naming": cfg["naming"], "leftover": cfg["leftover"],
             "server_mode": cfg["server_mode"], "local_shares": cfg["local_shares"],
             "disabled_paths": cfg["disabled_paths"]}
 
@@ -319,6 +347,58 @@ def api_list_not_duplicates():
 @app.post("/api/not-duplicates/remove")
 def api_remove_not_duplicates(body: NotDupRemoveBody):
     return remove_not_duplicate_pairs(body.pairs)
+
+
+# ── Bundles API ─────────────────────────────────────────────────────────────────────────
+@app.get("/api/bundles")
+def api_bundles():
+    return current_bundles()
+
+
+@app.get("/api/bundles/not-related")
+def api_list_not_related():
+    return list_not_related()
+
+
+@app.post("/api/bundles/not-related")
+def api_mark_not_related(body: NotRelatedBody):
+    return mark_not_related([r.model_dump() for r in body.records])
+
+
+@app.post("/api/bundles/not-related/remove")
+def api_remove_not_related(body: NotRelatedBody):
+    return remove_not_related([r.model_dump() for r in body.records])
+
+
+@app.post("/api/bundles/move")
+def api_bundle_move(body: BundleMoveBody):
+    return bundle_move_items(body.item_ids, body.bundle, body.location, body.name, body.dry_run, body.proposal_key)
+
+
+@app.post("/api/bundles/out")
+def api_bundle_out(body: BundleOutBody):
+    return bundle_out_items(body.item_ids, body.dry_run)
+
+
+@app.post("/api/bundles/merge")
+def api_bundle_merge(body: BundleMergeBody):
+    return bundle_merge(body.source, body.target, body.item_ids, body.dry_run)
+
+
+@app.post("/api/bundles/rename")
+def api_bundle_rename(body: BundleRenameBody):
+    return bundle_rename(body.path, body.new_name, body.dry_run)
+
+
+# ── Leftover folders API ─────────────────────────────────────────────────────────
+@app.get("/api/leftovers")
+def api_leftovers():
+    return current_leftovers()
+
+
+@app.post("/api/leftovers/delete")
+def api_leftovers_delete(body: LeftoverDeleteBody):
+    return delete_leftovers([f.model_dump() for f in body.folders], body.dry_run)
 
 
 # ── Transcode API ────────────────────────────────────────────────────────────────

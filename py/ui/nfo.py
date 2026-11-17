@@ -35,6 +35,12 @@ def parse_nfo(nfo_path: Path) -> Dict[str, Any]:
             name = actor.findtext("name")
             if name:
                 actors.append(name)
+        # TMDB collection: <set><name>…</name></set>, or the older <set>…</set>
+        set_el = root.find("set")
+        set_name = ""
+        if set_el is not None:
+            set_name = (set_el.findtext("name") or "").strip() or (set_el.text or "").strip()
+        set_id = (root.findtext("collectionnumber") or "").strip()
         return {
             "title":     root.findtext("title") or "",
             "year":      root.findtext("year") or "",
@@ -45,6 +51,8 @@ def parse_nfo(nfo_path: Path) -> Dict[str, Any]:
             "tagline":   root.findtext("tagline") or "",
             "uniqueids": uniqueids,
             "actors":    actors,
+            "set":       set_name,
+            "set_id":    set_id if set_id.isdigit() else "",
         }
     except Exception:
         return {}

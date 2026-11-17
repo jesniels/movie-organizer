@@ -39,9 +39,9 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 | R-25 | Deleting a loose file could take sidecars another video still uses | Delete | Guarded |
 | R-26 | Moving a loose file left its sidecars behind / could take or overwrite others' sidecars | Move | Guarded |
 | R-27 | Moving items out of a common folder (e.g. `James Bond\`) scattered them in the destination | Move | Guarded |
-| R-28 | Moving movies into a bundle could create folders in the wrong place, overwrite, or take other movies' sidecars | Bundles | **Planned** (design) |
-| R-29 | Deleting leftover folders could delete a video or files the user did not see | Leftover folders | **Planned** (design) |
-| R-30 | Loose-file Move/Delete/Reorganize leave the `<stem>.trickplay` folder behind | Move / Delete / Reorganize | **Open** (fix decided) |
+| R-28 | Moving movies into a bundle could create folders in the wrong place, overwrite, or take other movies' sidecars | Bundles | Guarded |
+| R-29 | Deleting leftover folders could delete a video or files the user did not see | Leftover folders | Guarded |
+| R-30 | Loose-file Move/Delete/Reorganize leave the `<stem>.trickplay` folder behind | Move / Delete / Reorganize | Guarded |
 
 ---
 
@@ -116,6 +116,14 @@ Last full audit: 2026-09-27. Reorganize (bulk rename/foldering/sanitize, `py/ui/
 - **Guard:** when the Move dialog opens it asks the server (`fileops.move_groups`) which selected items sit in a folder below their location root, shows those folders ("n of m items selected") and asks **Move them together?** — *Yes* (default): the item goes into the same folder path below the destination (`keep_groups`); *No*: straight into the destination, with an offer to **Unselect** them instead. Move is disabled until the check has answered.
 - **Safety:** all R-03/R-26 checks apply to the path inside the common folder; an existing folder of that name in the destination is merged into item by item (an existing item is refused, never overwritten). After a move, the source common folder (and parents up to the root) is removed **only when empty** (`rmdir`, which cannot delete content); removed folders are listed in the result.
 
+### R-30 — The `<stem>.trickplay` folder of a loose file (guarded 2026-10-28)
+- **What happened:** Jellyfin can store trickplay images in a `<stem>.trickplay\` folder next to the video. `fileops._own_sidecars` and `reorganize.related_files` only collect files, so moving, deleting or foldering a loose file left that folder behind (and Delete left it as an orphan).
+- **Guard:** `reorganize.trickplay_folder` (pure) / `fileops._own_trickplay` find the folder by the exact stem (any case); when another video in the folder has the same stem (`Heat.mkv` + `Heat.mp4`) it is shared and stays.
+  - **Move** (R-26) and bundle moves (R-28): the folder is one more sidecar — counted in the free-space check, listed in the dry run (`also`), moved only after the video. An existing `<stem>.trickplay` folder at the destination is **replaced** when it holds only images (decided 2026-10-28 — Jellyfin regenerates it; listed in the dry run as `replaces`, deleted file by file + `rmdir` right before the new one moves in, `fileops._taken_destination` / `_move_followers`). One holding anything else refuses the item. A destination that appears after the check is never replaced: the folder stays and is reported as a warning.
+  - **Delete** (R-25): removed only when it holds nothing but images (`IMAGE_EXTS`) — files one by one, then folders with `rmdir` deepest first (`fileops._delete_image_tree`, no `rmtree`). Anything else leaves it in place; the dry run and the result report it as a warning.
+  - **Reorganize** foldering (R-19): it moves into the new movie folder with the video (renamed along when the video stem changes) and is listed in the analysis and the dry run.
+- **Test:** `py/test/test_trickplay_sidecars.py`.
+
 ---
 
 ## Reorganize — guarded operations (2026-10-04)
@@ -148,29 +156,24 @@ Reorganize ([design](reorganizing/REORGANIZE-DESIGN.md)) creates folders for loo
 - **Guard (2026-10-20):** `scanner._is_leaf_folder` treats such a folder as a Bundle when a subfolder holds videos and is not a season folder or a Jellyfin extras folder (`EXTRAS_DIR_NAMES`). Its own videos become Loose Files; each subfolder is scanned as its own item. Test: `py/test/test_scanner_bundles.py`.
 - **Still in place:** the Delete dialog shows a red warning when a movie folder contains more than one video file.
 
-## Bundles — planned operation (design 2026-10-28)
+## Bundles — guarded operation (built 2026-10-28)
 
-[Design](organization/bundles.md). Not built yet; the guards below are requirements for the implementation.
+[Design](organization/bundles.md). All bundle moves run through `fileops._relocate`; verified by `py/test/test_bundle_moves.py` (real files in `py/test/_tmp*`).
 
 ### R-28 — Moving movies into a bundle
 - **Risk:** *Create bundle* / *Add to bundle* / *Merge bundles* / *Out of bundle* / *Bundle…* create folders and move movies, and *Rename* in the Bundles overview renames a bundle folder. A bad name or parent could create a folder outside the library, a move could overwrite an existing movie, and foldering a loose file could take another movie's sidecars.
-- **Required guards:** an extension of Move, so R-03 (never overwrite, checked again right before each move), R-26 (exact-stem sidecars incl. the `<stem>.trickplay` folder, shared sidecars stay) and R-27 (an emptied source folder removed by `rmdir` only) apply. The only folders created are a new bundle folder directly in a configured Library Location (name must pass `valid_component`; an existing file or folder of that name refuses) and a loose file's own `{title} ({year})` folder inside the bundle (refused without title/year, or when it exists). *Out of bundle* goes to the bundle's Library Location root and never recreates the bundle folder (no R-27 "keep together"). A bundle rename uses the Rename rules (single component, existing target refused, case-only allowed). Series and transcoded items refused. Dry run by default, in-dialog confirmation, Jellyfin warning, a rescan follows. Detection itself never changes files.
-- **Organize's "Create new folder…"** uses the same checks (`valid_component`, only below a configured Library Location).
+- **Guards (`fileops.bundle_move_items`, `bundle_out_items`, `bundle_merge`, `bundle_rename`):** an extension of Move, so R-03 (never overwrite, checked again right before each move; write probes; free space; no two items with one destination), R-26/R-30 (a loose file takes its exact-stem sidecars and `<stem>.trickplay` folder; shared ones stay) and R-27 (a bundle folder left empty is removed by `rmdir` only) apply. The only folders created are a new bundle folder directly in an enabled Library Location (`valid_component`; an existing file or folder of that name refuses) and a loose file's own Naming-format folder (`{title} ({year})`) inside the target (refused without title/year, or when it exists — no `(1)`; loose parts of one movie, `CD1`/`CD2`, sent in one request share it). An existing bundle target must be a folder directly in an enabled Library Location, never a configured folder. *Out of bundle* goes to the bundle's Library Location root and never recreates the bundle folder (no R-27 "keep together"). A movie already in the target bundle, or a copy of one of its movies (same duplicate group), is skipped. Series and transcoded items refused. A bundle rename uses the Rename rules (single component, existing target refused, case-only allowed). Folders this call created and left empty after a failed move are removed again (`rmdir`). Refused with 409 while a scan or transcode runs. Dry run by default; "not a duplicate" and "not related" records follow the new paths. Detection itself never changes files.
+- **Organize's "Create new folder…"** must use the same checks (`valid_component`, only below a configured Library Location) when Organize is built.
 
-## Leftover folders — planned operation (design 2026-10-28)
+## Leftover folders — guarded operation (built 2026-10-31)
 
-[Design](organization/README.md#leftover-folders-designed-2026-10-28-not-built-yet). Not built yet; the guards below are requirements for the implementation.
+[Design](organization/README.md#leftover-folders-designed-2026-10-28-not-built-yet). All checks and the delete are in `py/ui/leftovers.py` (`_check_on_disk`, `delete_leftovers`); verified by `py/test/test_leftovers.py` (real files in `py/test/_tmp*`).
 
 ### R-29 — Deleting leftover folders
 - **Risk:** a folder listed from the scan cache may have changed (a video copied in, new files added), a folder could lie outside the library, or it could be live data of a working movie (`Heat (1995)\extrafanart\`) or another configured location.
-- **Required guards:** only folders inside an enabled Library or Download Location — never the location itself, never a folder that is or contains another configured folder (library, download, transcode output; enabled or not), never a folder inside a folder that produces an item (holds a video, or is a series with episodes), never a folder that is or contains a `system_folders` entry (`$RECYCLE.BIN`, …). Nothing ticked by default; dry run by default; in-dialog confirmation. Before deleting, the server re-checks each folder **on disk** against all of these rules — the "inside an item" test walks the folders between the location root and the leftover, never the cached item list, which may predate the last action — plus: no video anywhere below it, only files on the configured `leftover:` lists (video extensions can never be added to them; inside a `thumbnail_folders` folder such as `@eaDir` any non-video file is allowed) and exactly the files the user saw — otherwise that folder is refused. Files are deleted one by one, then folders with `rmdir` deepest first; no `rmtree`, so anything unexpected stops that folder.
+- **Guards:** only folders inside an enabled Library or Download Location — never the location itself, never a folder that is or contains another configured folder (library, download, transcode output; enabled or not), never a folder inside a folder that produces an item (a movie or series folder as the scanner sees it — a Bundle holding a loose file next to movie folders is none), never a folder that is or contains a `system_folders` entry (`$RECYCLE.BIN`, …). Nothing ticked by default; dry run by default; in-dialog confirmation. Before deleting, the server re-checks each folder **on disk** against all of these rules — the "inside an item" test walks the folders between the location root and the leftover, never the cached item list, which may predate the last action — plus: no video anywhere below it, only files on the configured `leftover:` lists (video extensions can never be added to them; inside a `thumbnail_folders` folder such as `@eaDir` any non-video file is allowed) and exactly the files the user saw — otherwise that folder is refused. Files are deleted one by one, then folders with `rmdir` deepest first; no `rmtree`, so anything unexpected stops that folder.
 
 ## Open risks
-
-### R-30 — Loose-file Move/Delete/Reorganize leave the `<stem>.trickplay` folder behind (fix decided 2026-10-28)
-- **Risk:** Jellyfin can store trickplay images in a `<stem>.trickplay\` folder next to the video. `fileops._own_sidecars` and `reorganize.related_files` only collect files, so moving, deleting or foldering a loose file leaves that folder behind (and Delete leaves it as an orphan).
-- **Decided fix (not built):** everywhere a loose file's sidecars are collected (Move R-26, Delete R-25, Reorganize R-19, bundle moves R-28), the `<stem>.trickplay` folder follows under the same exact-stem rule: destination must not exist, a folder shared with another video stays, listed in the dry run, moved only after the video.
-- **Delete without `rmtree`:** a trickplay folder holds sub-folders of tiles (`320 - 10x10\0.jpg`, …). Delete removes it only when it contains nothing but image files: files one by one, then folders with `rmdir` deepest first — anything else (a video, an unknown file) leaves the folder in place and is reported, as in R-29.
 
 ### R-14 — Whole-file NFO copy overwrites without backup or dry run
 - **Risk:** copying a whole NFO replaces the target NFO permanently (hand-edited metadata is lost). Only the field-picker confirmation protects it.

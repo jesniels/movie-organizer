@@ -79,7 +79,8 @@ def _find_duplicates(items: List[Dict[str, Any]], dismissed: Optional[set] = Non
 
 
 def recompute_duplicates() -> None:
-    """Refresh duplicate lists in status from in-memory items (no rescan)."""
+    """Refresh duplicate lists in status from in-memory items (no rescan), and the bundle proposals with them."""
+    from .bundles import recompute_bundles   # late import: bundles imports reorganize, which imports this module
     dismissed = _dismissed_pairs()
     with _lock:
         items  = all_items()
@@ -88,6 +89,7 @@ def recompute_duplicates() -> None:
         if _state["status"]:
             _state["status"]["duplicate_movies"] = _find_duplicates(movies, dismissed)
             _state["status"]["duplicate_series"] = _find_duplicates(series, dismissed)
+    recompute_bundles()
 
 
 def mark_not_duplicate(ids: List[str]) -> None:

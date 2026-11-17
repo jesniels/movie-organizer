@@ -10,7 +10,7 @@ let filteredItems       = [];
 let selectedIds         = new Set();
 let currentDetail       = null;    // item currently shown in detail modal
 let configCache         = { locations: [], downloads: [] };
-let activeSpecialFilter = null;    // null | 'duplicates' | 'missing-nfo' | 'missing-eps'
+let activeSpecialFilter = null;    // null | 'duplicates' | 'missing-nfo' | 'missing-eps' | 'bundles' | 'bundle-members'
 let duplicateMap        = new Map(); // item.id → [{ id, title, location, path }, ...]
 let duplicateGroups     = [];      // [{ title, items: [...] }, ...] from /api/status
 let dupGroupOf          = new Map(); // item.id → index into duplicateGroups
@@ -117,7 +117,8 @@ function handleActionResults(results, dryRun, verb, pastVerb, resultOpts = {}) {
   if (dryRun && ok.length) {
     const lines = ok.map(r => {
       if (r.to)   return `${r.from}\n  → ${r.to}`;
-      if (r.path) return `Would ${verb}: ${r.path}` + (r.also || []).map(a => `\n  + ${a}`).join('');
+      if (r.path) return `Would ${verb}: ${r.path}` + (r.also || []).map(a => `\n  + ${a}`).join('')
+        + (r.warning ? `\n  ⚠ ${r.warning}` : '');
       return JSON.stringify(r);
     });
     showResultModal({ lines, ...resultOpts });
